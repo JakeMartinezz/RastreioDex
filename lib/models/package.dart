@@ -9,6 +9,7 @@ class Package {
   final DateTime addedAt;
   final DateTime? lastUpdate;
   final String currentStatus;
+  final int orderIndex;
 
   Package({
     required this.id,
@@ -19,6 +20,7 @@ class Package {
     required this.addedAt,
     this.lastUpdate,
     required this.currentStatus,
+    this.orderIndex = 0, // Valor padrão
   });
 
   factory Package.fromJson(Map<String, dynamic> json) {
@@ -38,6 +40,7 @@ class Package {
           ? DateTime.parse(json['lastUpdate'])
           : null,
       currentStatus: json['currentStatus'] ?? 'Aguardando rastreamento',
+      orderIndex: json['orderIndex'] ?? 0, // <--- LÊ O INDEX
     );
   }
 
@@ -51,6 +54,7 @@ class Package {
       'addedAt': addedAt.toIso8601String(),
       'lastUpdate': lastUpdate?.toIso8601String(),
       'currentStatus': currentStatus,
+      'orderIndex': orderIndex, // <--- SALVA O INDEX
     };
   }
 
@@ -63,6 +67,7 @@ class Package {
     DateTime? addedAt,
     DateTime? lastUpdate,
     String? currentStatus,
+    int? orderIndex,
   }) {
     return Package(
       id: id ?? this.id,
@@ -73,6 +78,7 @@ class Package {
       addedAt: addedAt ?? this.addedAt,
       lastUpdate: lastUpdate ?? this.lastUpdate,
       currentStatus: currentStatus ?? this.currentStatus,
+      orderIndex: orderIndex ?? this.orderIndex,
     );
   }
 }
