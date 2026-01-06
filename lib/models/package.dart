@@ -1,4 +1,5 @@
 import 'tracking_event.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Package {
   final String id;
@@ -10,6 +11,7 @@ class Package {
   final DateTime? lastUpdate;
   final String currentStatus;
   final int orderIndex;
+  final bool isArchived;
 
   Package({
     required this.id,
@@ -20,7 +22,8 @@ class Package {
     required this.addedAt,
     this.lastUpdate,
     required this.currentStatus,
-    this.orderIndex = 0, // Valor padrão
+    this.orderIndex = 0,
+    this.isArchived = false,
   });
 
   factory Package.fromJson(Map<String, dynamic> json) {
@@ -33,28 +36,29 @@ class Package {
               ?.map((e) => TrackingEvent.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      addedAt: json['addedAt'] != null
-          ? DateTime.parse(json['addedAt'])
-          : DateTime.now(),
-      lastUpdate: json['lastUpdate'] != null
-          ? DateTime.parse(json['lastUpdate'])
-          : null,
+      addedAt: json['addedAt'] is Timestamp 
+          ? (json['addedAt'] as Timestamp).toDate()
+          : (json['addedAt'] != null ? DateTime.parse(json['addedAt'].toString()) : DateTime.now()),
+      lastUpdate: json['lastUpdate'] is Timestamp
+          ? (json['lastUpdate'] as Timestamp).toDate()
+          : (json['lastUpdate'] != null ? DateTime.parse(json['lastUpdate'].toString()) : null),
       currentStatus: json['currentStatus'] ?? 'Aguardando rastreamento',
-      orderIndex: json['orderIndex'] ?? 0, // <--- LÊ O INDEX
+      orderIndex: json['orderIndex'] ?? 0,
+      isArchived: json['isArchived'] ?? false,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
       'trackingCode': trackingCode,
       'customName': customName,
       'type': type,
       'events': events.map((e) => e.toJson()).toList(),
-      'addedAt': addedAt.toIso8601String(),
-      'lastUpdate': lastUpdate?.toIso8601String(),
+      'addedAt': Timestamp.fromDate(addedAt),
+      'lastUpdate': lastUpdate != null ? Timestamp.fromDate(lastUpdate!) : null,
       'currentStatus': currentStatus,
-      'orderIndex': orderIndex, // <--- SALVA O INDEX
+      'orderIndex': orderIndex,
+      'isArchived': isArchived,
     };
   }
 
@@ -68,6 +72,7 @@ class Package {
     DateTime? lastUpdate,
     String? currentStatus,
     int? orderIndex,
+    bool? isArchived,
   }) {
     return Package(
       id: id ?? this.id,
@@ -79,6 +84,7 @@ class Package {
       lastUpdate: lastUpdate ?? this.lastUpdate,
       currentStatus: currentStatus ?? this.currentStatus,
       orderIndex: orderIndex ?? this.orderIndex,
+      isArchived: isArchived ?? this.isArchived,
     );
   }
 }

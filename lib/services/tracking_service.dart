@@ -5,7 +5,7 @@ import '../models/tracking_event.dart';
 
 class TrackingService {
   // Chave de API e URL
-  static const String _apiKey = 'Sua-chave-de-api'; // <--- INSIRA SUA CHAVE AQUI
+  static const String _apiKey = 'Sua-chave-aqui';
   static const String _apiUrl = 'https://api-labs.wonca.com.br/wonca.labs.v1.LabsService/Track';
 
   // --- MAPA DE PREFIXOS PARA CLASSIFICAÇÃO ---

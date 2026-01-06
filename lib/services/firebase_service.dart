@@ -7,62 +7,78 @@ class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _collection = 'packages';
 
-  Stream<List<Package>> getPackagesStream() {
-    debugPrint('📡 Iniciando stream do Firestore...');
+  // ALTERADO: Recebe parâmetro para filtrar arquivados
+  Stream<List<Package>> getPackagesStream({bool showArchived = false}) {
     return _firestore
         .collection(_collection)
-        // ALTERADO: Ordena pelo índice personalizado e depois pela data como critério de desempate
+        .where('isArchived', isEqualTo: showArchived) // <--- FILTRO
         .orderBy('orderIndex', descending: false)
         .orderBy('addedAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return Package.fromJson(data);
-      }).toList();
+          return snapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return Package.fromJson(data);
+          }).toList();
+        });
+  }
+
+  // NOVO: Alternar status de arquivamento
+  Future<void> toggleArchive(String packageId, bool archive) async {
+    await _firestore.collection(_collection).doc(packageId).update({
+      'isArchived': archive,
     });
   }
 
-  // ... (mantenha os métodos addPackage, updatePackage, deletePackage, updatePackageTracking iguais) ...
-  // Apenas certifique-se de que os métodos existentes usem o novo toJson() do modelo que já inclui o orderIndex.
-  
-  // MANTENHA O RESTANTE DA CLASSE E ADICIONE ESTE NOVO MÉTODO NO FINAL:
-
-  Future<void> reorderPackages(List<Package> packages) async {
-    final batch = _firestore.batch();
-
-    for (int i = 0; i < packages.length; i++) {
-      final package = packages[i];
-      // Só atualiza se o índice mudou para economizar escritas
-      if (package.orderIndex != i) {
-        final docRef = _firestore.collection(_collection).doc(package.id);
-        batch.update(docRef, {'orderIndex': i});
-      }
-    }
-
+  // NOVO: Automação para arquivar entregues há mais de 7 dias
+  Future<int> autoArchiveDeliveredPackages() async {
     try {
-      await batch.commit();
-      debugPrint('✅ Ordem atualizada no Firebase');
+      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+
+      // Busca pacotes entregues, não arquivados e atualizados há mais de 7 dias
+      // Nota: Isso pode exigir um índice composto no Firebase (verifique o console)
+      final snapshot = await _firestore
+          .collection(_collection)
+          .where('isArchived', isEqualTo: false)
+          .where('lastUpdate', isLessThan: Timestamp.fromDate(sevenDaysAgo))
+          .get();
+
+      int count = 0;
+      final batch = _firestore.batch();
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final status = (data['currentStatus'] ?? '').toString().toLowerCase();
+
+        // Verificação dupla se foi entregue
+        if (status.contains('entregue')) {
+          batch.update(doc.reference, {'isArchived': true});
+          count++;
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit();
+        debugPrint('🧹 Auto-arquivados $count pacotes antigos.');
+      }
+      return count;
     } catch (e) {
-      debugPrint('❌ Erro ao reordenar: $e');
+      debugPrint('❌ Erro no auto-arquivamento: $e');
+      return 0;
     }
   }
 
-  // Copie os outros métodos (addPackage, etc) do seu arquivo original se necessário, 
-  // mas a única mudança lógica crítica é no getPackagesStream e o novo reorderPackages.
+  // ... (Mantenha os outros métodos: addPackage, updatePackage, deletePackage, reorderPackages, etc.)
+
+  // Certifique-se que o addPackage usa o novo toJson()
   Future<void> addPackage(Package package) async {
-      // ... (código existente)
-      // Nota: Ao adicionar, você pode querer definir o orderIndex como 0 (início) ou packages.length (fim)
-      // Mas o padrão 0 do modelo já funciona (vai para o topo).
-       try {
-        debugPrint('💾 Adicionando pacote ao Firestore: ${package.trackingCode}');
-        final docRef = await _firestore.collection(_collection).add(package.toJson());
-        debugPrint('✅ Pacote adicionado com ID: ${docRef.id}');
-      } catch (e, stackTrace) {
-        debugPrint('❌ Erro ao adicionar pacote: $e');
-        rethrow;
-      }
+    try {
+      await _firestore.collection(_collection).add(package.toJson());
+    } catch (e) {
+      debugPrint('❌ Erro ao adicionar pacote: $e');
+      rethrow;
+    }
   }
 
   Future<void> updatePackage(Package package) async {
@@ -77,28 +93,31 @@ class FirebaseService {
   }
 
   Future<bool> updatePackageTracking(
-      String packageId, List<TrackingEvent> newEvents) async {
-    // ... (mantenha o código original aqui)
-     try {
+    String packageId,
+    List<TrackingEvent> newEvents,
+  ) async {
+    try {
       final doc = await _firestore.collection(_collection).doc(packageId).get();
       if (!doc.exists) return false;
 
       final package = Package.fromJson({...doc.data()!, 'id': doc.id});
-
       final hasNewEvents = newEvents.length != package.events.length;
 
       if (hasNewEvents) {
+        // Se receber atualização, desarquiva automaticamente (opcional, mas bom UX)
         final updatedPackage = package.copyWith(
           events: newEvents,
           lastUpdate: DateTime.now(),
-          currentStatus:
-              newEvents.isNotEmpty ? newEvents.first.status : package.currentStatus,
+          currentStatus: newEvents.isNotEmpty
+              ? newEvents.first.status
+              : package.currentStatus,
+          isArchived:
+              false, // Traz de volta para a tela principal se tiver novidade
         );
 
         await updatePackage(updatedPackage);
         return true;
       }
-
       return false;
     } catch (e) {
       return false;
@@ -106,8 +125,7 @@ class FirebaseService {
   }
 
   Future<List<Package>> getAllPackages() async {
-    // ... (mantenha o código original aqui)
-      final snapshot = await _firestore
+    final snapshot = await _firestore
         .collection(_collection)
         .orderBy('addedAt', descending: true)
         .get();
@@ -117,5 +135,17 @@ class FirebaseService {
       data['id'] = doc.id;
       return Package.fromJson(data);
     }).toList();
+  }
+
+  Future<void> reorderPackages(List<Package> packages) async {
+    final batch = _firestore.batch();
+    for (int i = 0; i < packages.length; i++) {
+      if (packages[i].orderIndex != i) {
+        batch.update(_firestore.collection(_collection).doc(packages[i].id), {
+          'orderIndex': i,
+        });
+      }
+    }
+    await batch.commit();
   }
 }

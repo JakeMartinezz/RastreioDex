@@ -8,26 +8,22 @@ import 'services/background_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Inicializa Firebase
   await Firebase.initializeApp();
-  
+
   // Inicializa Workmanager
   // Nota: isInDebugMode foi removido na nova versão
-  await Workmanager().initialize(
-    callbackDispatcher, 
-  );
+  await Workmanager().initialize(callbackDispatcher);
 
   // Registra a tarefa periódica
   await Workmanager().registerPeriodicTask(
     "1", // ID único da tarefa
     fetchBackgroundTask, // Nome da tarefa
     frequency: const Duration(minutes: 15),
-    constraints: Constraints(
-      networkType: NetworkType.connected,
-    ),
+    constraints: Constraints(networkType: NetworkType.connected),
     // CORREÇÃO AQUI: Mudou de ExistingWorkPolicy para ExistingPeriodicWorkPolicy
-    existingWorkPolicy: ExistingPeriodicWorkPolicy.update, 
+    existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
   );
 
   final savedTheme = await AdaptiveTheme.getThemeMode();

@@ -5,13 +5,12 @@ import '../models/package.dart';
 class PackageCard extends StatelessWidget {
   final Package package;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
+  // onDelete removido pois agora é via swipe
 
   const PackageCard({
     super.key,
     required this.package,
     required this.onTap,
-    required this.onDelete,
   });
 
   IconData _getPackageIcon() {
@@ -36,7 +35,6 @@ class PackageCard extends StatelessWidget {
     return Colors.blue;
   }
 
-  // Lógica dos dias
   Widget _buildDaysInfo(BuildContext context) {
     if (package.events.isEmpty || package.lastUpdate == null) {
       return const SizedBox.shrink();
@@ -71,17 +69,14 @@ class PackageCard extends StatelessWidget {
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // CORREÇÃO 1: withValues em vez de withOpacity
     final displayColor = isDark ? color.withValues(alpha: 0.8) : color;
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        // CORREÇÃO 2
         color: displayColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
-        // CORREÇÃO 3
         border: Border.all(color: displayColor.withValues(alpha: 0.3)),
       ),
       child: Row(
@@ -122,9 +117,7 @@ class PackageCard extends StatelessWidget {
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: Theme.of(context).brightness == Brightness.dark
-                          // CORREÇÃO 4
                           ? Colors.blue.withValues(alpha: 0.2)
-                          // CORREÇÃO 5
                           : Theme.of(context).primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -162,11 +155,7 @@ class PackageCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    color: Colors.red[400],
-                    onPressed: onDelete,
-                  ),
+                  // Botão de deletar removido daqui
                 ],
               ),
               const SizedBox(height: 12),
@@ -175,11 +164,9 @@ class PackageCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
-                  // CORREÇÃO 6
                   color: _getStatusColor().withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    // CORREÇÃO 7
                     color: _getStatusColor().withValues(alpha: 0.3),
                     width: 1,
                   ),
@@ -197,7 +184,6 @@ class PackageCard extends StatelessWidget {
                         package.currentStatus,
                         style: TextStyle(
                           fontSize: 13,
-                          // CORREÇÃO 8
                           color: _getStatusColor().withValues(alpha: 0.9),
                           fontWeight: FontWeight.w500,
                         ),
