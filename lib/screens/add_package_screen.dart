@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Necessário para acessar o Clipboard
 import '../models/package.dart';
 import '../services/firebase_service.dart';
 import '../services/tracking_service.dart';
@@ -18,6 +19,70 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   bool _isLoading = false;
   String _loadingMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Inicia a verificação do clipboard assim que a tela é montada
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkClipboardAndAutoPaste();
+    });
+  }
+
+  /// Verifica se há um código de rastreio válido na área de transferência
+  Future<void> _checkClipboardAndAutoPaste() async {
+    try {
+      // 1. Obtém o texto da área de transferência
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      if (data?.text == null) return;
+
+      final text = data!.text!.trim().toUpperCase();
+
+      // 2. Valida se é um formato de rastreio válido
+      if (!TrackingService.isValidTrackingCode(text)) return;
+
+      // 3. Se o usuário já digitou algo, não sobrescrevemos
+      if (_trackingCodeController.text.isNotEmpty) return;
+
+      // 4. Verifica se já existe cadastrado (Evita duplicatas)
+      final packages = await _firebaseService.getAllPackages();
+      final isDuplicate = packages.any((p) => p.trackingCode == text);
+
+      if (isDuplicate) {
+        debugPrint('📋 Smart Paste: Código $text já cadastrado. Ignorando.');
+        return;
+      }
+
+      // 5. Se passou por tudo, cola automaticamente
+      if (mounted) {
+        setState(() {
+          _trackingCodeController.text = text;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.content_paste, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Código detectado: $text',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green[700],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Erro no Smart Paste: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -42,7 +107,8 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
       final customName = _customNameController.text.trim();
 
       debugPrint('🔍 Rastreando código: $trackingCode');
-      setState(() => _loadingMessage = 'Buscando informações da encomenda...\nPode levar alguns segundos');
+      setState(() => _loadingMessage =
+          'Buscando informações da encomenda...\nPode levar alguns segundos');
 
       final events = await TrackingService.trackPackage(trackingCode);
       debugPrint('📦 Eventos encontrados: ${events.length}');
@@ -197,7 +263,8 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
                   decoration: BoxDecoration(
                     color: Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: Colors.blue.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     children: [

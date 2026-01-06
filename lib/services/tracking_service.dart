@@ -5,160 +5,104 @@ import '../models/tracking_event.dart';
 
 class TrackingService {
   // Chave de API e URL
-  static const String _apiKey = 'Sua-chave-aqui';
+  static const String _apiKey = ''; // <--- INSIRA SUA CHAVE AQUI
   static const String _apiUrl = 'https://api-labs.wonca.com.br/wonca.labs.v1.LabsService/Track';
 
-  // --- MAPA DE PREFIXOS PARA CLASSIFICAÇÃO ---
-  static final Map<String, String> _prefixMap = {
-    // SEDEX
-    'AA': 'SEDEX', 'AB': 'SEDEX', 'AC': 'SEDEX', 'AD': 'SEDEX', 'AE': 'SEDEX',
-    'AJ': 'SEDEX', 'AX': 'SEDEX', 'AY': 'SEDEX', 'AZ': 'SEDEX Hoje',
-    'DA': 'SEDEX', 'DD': 'SEDEX 12', 'DF': 'SEDEX', 'DG': 'SEDEX', 'DH': 'SEDEX',
-    'DJ': 'SEDEX', 'DK': 'SEDEX', 'DL': 'SEDEX', 'DM': 'SEDEX', 'DN': 'SEDEX',
-    'DO': 'SEDEX', 'DP': 'SEDEX', 'DQ': 'SEDEX', 'DU': 'SEDEX', 'DV': 'SEDEX',
-    'DW': 'SEDEX', 'DX': 'SEDEX 10', 'DY': 'SEDEX', 'DZ': 'SEDEX',
-    'OA': 'SEDEX', 'OB': 'SEDEX', 'OC': 'SEDEX', 'OD': 'SEDEX', 'OE': 'SEDEX 12',
-    'OF': 'SEDEX', 'OG': 'SEDEX', 'OH': 'SEDEX', 'OI': 'SEDEX', 'OJ': 'SEDEX',
-    'OK': 'SEDEX', 'OM': 'SEDEX', 'ON': 'SEDEX', 'OO': 'SEDEX', 'OP': 'SEDEX',
-    'OQ': 'SEDEX', 'OR': 'SEDEX 10', 'OS': 'SEDEX', 'OT': 'SEDEX', 'OU': 'SEDEX',
-    'OV': 'SEDEX', 'OW': 'SEDEX Hoje', 'OX': 'SEDEX', 'OY': 'SEDEX', 'OZ': 'SEDEX',
-    'QB': 'SEDEX', 'SA': 'SEDEX', 'SB': 'SEDEX 10', 'SC': 'SEDEX a Cobrar',
-    'SE': 'SEDEX', 'SF': 'SEDEX', 'SG': 'SEDEX', 'SH': 'SEDEX', 'SI': 'SEDEX',
-    'SJ': 'SEDEX Hoje', 'SK': 'SEDEX', 'SL': 'SEDEX', 'SM': 'SEDEX 12',
-    'SN': 'SEDEX', 'SO': 'SEDEX', 'SP': 'SEDEX Hoje', 'SQ': 'SEDEX', 'SR': 'SEDEX',
-    'SS': 'SEDEX', 'SU': 'SEDEX', 'SW': 'SEDEX', 'SX': 'SEDEX 10', 'SZ': 'SEDEX',
-    'TA': 'SEDEX', 'TB': 'SEDEX Hoje', 'TC': 'SEDEX 10', 'TD': 'SEDEX 12',
-    'TE': 'SEDEX', 'TF': 'SEDEX', 'TG': 'SEDEX', 'TH': 'SEDEX', 'TI': 'SEDEX',
-    'TJ': 'SEDEX', 'TK': 'SEDEX', 'TL': 'SEDEX', 'TM': 'SEDEX 10', 'TN': 'SEDEX',
-
-    // PAC e Mini Envios
-    'AK': 'PAC', 'AL': 'PAC', 'AQ': 'PAC', 'AS': 'PAC',
-    'AV': 'PAC Mini', 'AW': 'PAC Mini',
-    'OL': 'PAC', 'PA': 'PAC', 'PB': 'PAC', 'PC': 'PAC a Cobrar',
-    'PD': 'PAC', 'PE': 'PAC', 'PF': 'PAC', 'PG': 'PAC', 'PH': 'PAC',
-    'PI': 'PAC', 'PJ': 'PAC', 'PK': 'PAC', 'PL': 'PAC', 'PM': 'PAC',
-    'PN': 'PAC', 'PO': 'PAC', 'PP': 'PAC', 'PQ': 'PAC Mini', 'PR': 'PAC Mini',
-    'PS': 'PAC', 'PT': 'PAC', 'PU': 'PAC', 'PV': 'PAC', 'PW': 'PAC',
-    'PX': 'PAC', 'PY': 'PAC', 'PZ': 'PAC', 'QA': 'PAC', 'QC': 'PAC',
-    'QD': 'PAC', 'QE': 'PAC', 'QF': 'PAC', 'QG': 'PAC', 'QH': 'PAC',
-    'QI': 'PAC', 'QJ': 'PAC', 'QK': 'PAC', 'QL': 'PAC', 'QM': 'PAC',
-    'QN': 'PAC', 'QO': 'PAC Mini', 'QP': 'PAC', 'QQ': 'PAC', 'QR': 'PAC',
-    'QS': 'PAC', 'QT': 'PAC', 'QU': 'PAC', 'QV': 'PAC', 'QW': 'PAC',
-    'QX': 'PAC', 'QY': 'PAC', 'QZ': 'PAC', 'XL': 'PAC',
-
-    // Internacional (Packet, Prime, EMS, Colis, Importação)
-    'AR': 'Internacional', 'CA': 'Internacional', 'CB': 'Internacional',
-    'CC': 'Internacional', 'CD': 'Internacional', 'CE': 'Internacional',
-    'CF': 'Internacional', 'CG': 'Internacional', 'CH': 'Internacional',
-    'CI': 'Internacional', 'CJ': 'Internacional', 'CK': 'Internacional',
-    'CL': 'Internacional', 'CM': 'Internacional', 'CN': 'Internacional',
-    'CO': 'Internacional', 'CP': 'Internacional', 'CQ': 'Internacional',
-    'CR': 'Internacional', 'CS': 'Internacional', 'CT': 'Internacional',
-    'CU': 'Internacional', 'CV': 'Internacional', 'CW': 'Internacional',
-    'CX': 'Internacional', 'CY': 'Internacional', 'CZ': 'Internacional',
-    'EA': 'EMS Internacional', 'EB': 'EMS Internacional', 'EC': 'EMS Internacional',
-    'ED': 'EMS Internacional', 'EE': 'EMS Internacional', 'EF': 'EMS Internacional',
-    'EG': 'EMS Internacional', 'EH': 'EMS Internacional', 'EI': 'EMS Internacional',
-    'EJ': 'EMS Internacional', 'EK': 'EMS Internacional', 'EL': 'EMS Internacional',
-    'EM': 'Sedex Mundi', 'EN': 'EMS Internacional', 'EO': 'EMS Internacional',
-    'EP': 'EMS Internacional', 'EQ': 'EMS Internacional', 'ER': 'EMS Internacional',
-    'ES': 'EMS Internacional', 'ET': 'EMS Internacional', 'EU': 'EMS Internacional',
-    'EV': 'EMS Internacional', 'EW': 'EMS Internacional', 'EX': 'EMS Internacional',
-    'EY': 'EMS Internacional', 'EZ': 'EMS Internacional',
-    'IF': 'Internacional', 'IG': 'Internacional', 'IN': 'Internacional',
-    'IX': 'Packet Express', 'KL': 'Packet Express',
-    'LA': 'Prime Internacional', 'LB': 'Prime Internacional', 'LC': 'Prime Internacional',
-    'LD': 'Prime Internacional', 'LE': 'Prime Internacional', 'LF': 'Prime Internacional',
-    'LG': 'Prime Internacional', 'LH': 'Prime Internacional', 'LI': 'Prime Internacional',
-    'LJ': 'Prime Internacional', 'LK': 'Prime Internacional', 'LL': 'Prime Internacional',
-    'LM': 'Prime Internacional', 'LN': 'Prime Internacional', 'LO': 'Prime Internacional',
-    'LP': 'Prime Internacional', 'LQ': 'Prime Internacional', 'LR': 'Prime Internacional',
-    'LS': 'Prime Internacional', 'LT': 'Prime Internacional', 'LU': 'Prime Internacional',
-    'LV': 'Prime Internacional', 'LW': 'Prime Internacional', 'LX': 'Prime Internacional',
-    'LY': 'Prime Internacional', 'LZ': 'Prime Internacional',
-    'MS': 'Internacional',
-    'NA': 'Packet Standard', 'NB': 'Packet Standard', 'NC': 'Packet Standard',
-    'ND': 'Packet Standard', 'NL': 'Packet Standard', 'NM': 'Packet Standard',
-    'NN': 'Packet Standard', 'NO': 'Packet Standard', 'NX': 'Packet Standard',
-    'UA': 'Importação', 'UB': 'Importação', 'UC': 'Importação',
-    'UD': 'Importação', 'UE': 'Importação', 'UF': 'Importação',
-    'UG': 'Importação', 'UH': 'Importação', 'UI': 'Importação',
-    'UJ': 'Importação', 'UK': 'Importação', 'UL': 'Importação',
-    'UM': 'Importação', 'UN': 'Importação', 'UO': 'Importação',
-    'UP': 'Importação', 'UQ': 'Importação', 'UR': 'Importação',
-    'US': 'Importação', 'UT': 'Importação', 'UU': 'Importação',
-    'UV': 'Importação', 'UW': 'Importação', 'UX': 'Importação',
-    'UY': 'Importação', 'UZ': 'Importação',
-    'VA': 'Internacional', 'VB': 'Internacional', 'VC': 'Internacional',
-    'VD': 'Internacional', 'VE': 'Internacional', 'VF': 'Internacional',
-    'VG': 'Internacional', 'VH': 'Internacional', 'VI': 'Internacional',
-    'VJ': 'Internacional', 'VK': 'Internacional', 'VL': 'Internacional',
-    'VM': 'Internacional', 'VN': 'Internacional', 'VO': 'Internacional',
-    'VP': 'Internacional', 'VQ': 'Internacional', 'VR': 'Internacional',
-    'VS': 'Internacional', 'VT': 'Internacional', 'VU': 'Internacional',
-    'VV': 'Internacional', 'VW': 'Internacional', 'VX': 'Internacional',
-    'VY': 'Internacional', 'VZ': 'Internacional',
-    'XA': 'Aviso Tributado', 'XM': 'Sedex Mundi', 'XP': 'Packet Mini',
-    'XR': 'Tributado', 'XX': 'Tributado', 'YL': 'Packet Express',
-
-    // Carta, Registrado, Econômica
-    'BD': 'Carta', 'BE': 'Carta', 'BG': 'Carta', 'BH': 'Carta',
-    'BI': 'Carta', 'BJ': 'Carta', 'BK': 'Carta', 'BL': 'Carta',
-    'BN': 'Carta', 'BO': 'Carta', 'BP': 'Carta', 'BR': 'Carta',
-    'BT': 'Carta', 'BV': 'Carta', 'BY': 'Carta', 'BZ': 'Carta',
-    'DT': 'Carta',
-    'FA': 'Registrado', 'FB': 'Registrado', 'FC': 'Registrado',
-    'FD': 'Registrado', 'FF': 'Registrado', 'FH': 'Registrado',
-    'FJ': 'Carta', 'FM': 'Registrado', 'FR': 'Registrado',
-    'JA': 'Carta', 'JB': 'Carta', 'JC': 'Registrado',
-    'JD': 'Carta', 'JE': 'Carta', 'JF': 'Carta',
-    'JG': 'Registrado', 'JH': 'Registrado', 'JI': 'Carta',
-    'JJ': 'Registrado', 'JK': 'Carta', 'JL': 'Registrado',
-    'JM': 'Mala Direta', 'JN': 'Mala Direta', 'JO': 'Registrado',
-    'JP': 'Receita Federal', 'JQ': 'Carta', 'JR': 'Registrado',
-    'JS': 'Registrado', 'JT': 'Registrado', 'JU': 'Registrado',
-    'JV': 'Carta', 'JW': 'Carta', 'JX': 'Carta',
-    'JY': 'Carta', 'JZ': 'Carta',
-    'MD': 'Mala Direta', 'MH': 'Carta', 'MI': 'Carta',
-    'RA': 'Registrado', 'RB': 'Carta Registrada', 'RC': 'Registrado',
-    'RJ': 'Registrado', 'RK': 'Registrado', 'RM': 'Registrado',
-    'RO': 'Registrado', 'RQ': 'Registrado',
-    'YA': 'Registrado', 'YB': 'Carta', 'YC': 'Carta',
-    'YD': 'Mala Direta', 'YG': 'Registrado', 'YI': 'Registrado',
-    'YJ': 'Registrado', 'YM': 'Registrado', 'YN': 'Registrado',
-    'YO': 'Registrado', 'YP': 'Registrado', 'YQ': 'Registrado',
-    'YR': 'Registrado',
-
-    // Registrado Internacional
-    'RD': 'Internacional', 'RE': 'Mala Direta',
-    'RF': 'Internacional', 'RG': 'Internacional', 'RH': 'Internacional',
-    'RI': 'Internacional', 'RL': 'Internacional', 'RN': 'Internacional',
-    'RP': 'Internacional', 'RR': 'Internacional', 'RS': 'Internacional',
-    'RT': 'Internacional', 'RU': 'Internacional', 'RV': 'Internacional',
-    'RW': 'Internacional', 'RX': 'Internacional', 'RY': 'Internacional',
-    'RZ': 'Internacional',
-
-    // Expresso / Remessa Expressa
-    'BC': 'Expresso', 'BF': 'Expresso', 'DB': 'Expresso',
-    'DC': 'Expresso', 'DE': 'Expresso', 'DI': 'Expresso',
-    'DR': 'Expresso', 'DS': 'Expresso', 'ST': 'Expresso',
-    'SV': 'Expresso', 'SY': 'Expresso', 'YF': 'Expresso',
-
-    // Telegrama
-    'MA': 'Telegrama', 'MB': 'Telegrama', 'MC': 'Telegrama',
-    'ME': 'Telegrama', 'MF': 'Telegrama', 'MG': 'Telegrama',
-    'MJ': 'Telegrama', 'MK': 'Telegrama', 'MM': 'Telegrama',
-    'MN': 'Telegrama', 'MO': 'Telegrama', 'MP': 'Telegrama',
-    'MT': 'Telegrama', 'MV': 'Telegrama', 'MW': 'Telegrama',
-    'MY': 'Telegrama', 'MZ': 'Telegrama', 'NE': 'Telegrama',
-
-    // Logística
-    'FE': 'Logística', 'IA': 'Logística', 'IB': 'Cargo',
-    'IC': 'Logística', 'ID': 'Logística', 'IE': 'Logística',
-    'IH': 'Cargo', 'II': 'Logística', 'IK': 'Logística',
-    'IM': 'Logística', 'IP': 'Logística', 'IR': 'Logística',
-    'IS': 'Logística', 'IT': 'Logística', 'IU': 'Logística',
+  // --- OTIMIZAÇÃO: GRUPOS DE PREFIXOS ---
+  // É muito mais fácil manter listas de siglas do que um mapa gigante de 1:1
+  static const Map<String, List<String>> _prefixGroups = {
+    'SEDEX': [
+      'AA', 'AB', 'AC', 'AD', 'AE', 'AJ', 'AX', 'AY', 'DA', 'DF', 'DG', 'DH', 
+      'DJ', 'DK', 'DL', 'DM', 'DN', 'DO', 'DP', 'DQ', 'DU', 'DV', 'DW', 'DY', 
+      'DZ', 'OA', 'OB', 'OC', 'OD', 'OF', 'OG', 'OH', 'OI', 'OJ', 'OK', 'OM', 
+      'ON', 'OO', 'OP', 'OS', 'OT', 'OU', 'OV', 'OX', 'OY', 'OZ', 'QB', 'SA', 
+      'SE', 'SF', 'SG', 'SH', 'SI', 'SK', 'SL', 'SN', 'SO', 'SQ', 'SR', 'SS', 
+      'SU', 'SW', 'SZ', 'TA', 'TE', 'TF', 'TG', 'TH', 'TI', 'TJ', 'TK', 'TL', 
+      'TN'
+    ],
+    'SEDEX 10': ['DX', 'OR', 'SB', 'SX', 'TC', 'TM'],
+    'SEDEX 12': ['DD', 'OE', 'SM', 'TD'],
+    'SEDEX Hoje': ['AZ', 'OW', 'SJ', 'SP', 'TB'],
+    'SEDEX a Cobrar': ['SC'],
+    
+    'PAC': [
+      'AK', 'AL', 'AQ', 'AS', 'OL', 'PA', 'PB', 'PD', 'PE', 'PF', 'PG', 'PH', 
+      'PI', 'PJ', 'PK', 'PL', 'PM', 'PN', 'PO', 'PP', 'PS', 'PT', 'PU', 'PV', 
+      'PW', 'PX', 'PY', 'PZ', 'QA', 'QC', 'QD', 'QE', 'QF', 'QG', 'QH', 'QI', 
+      'QJ', 'QK', 'QL', 'QM', 'QN', 'QP', 'QQ', 'QR', 'QS', 'QT', 'QU', 'QV', 
+      'QW', 'QX', 'QY', 'QZ', 'XL'
+    ],
+    'PAC Mini': ['AV', 'AW', 'PQ', 'PR', 'QO'],
+    'PAC a Cobrar': ['PC'],
+    
+    'Internacional': [
+      'AR', 'CA', 'CB', 'CC', 'CD', 'CE', 'CF', 'CG', 'CH', 'CI', 'CJ', 'CK', 
+      'CL', 'CM', 'CN', 'CO', 'CP', 'CQ', 'CR', 'CS', 'CT', 'CU', 'CV', 'CW', 
+      'CX', 'CY', 'CZ', 'IF', 'IG', 'IN', 'MS', 'RD', 'RF', 'RG', 'RH', 'RI', 
+      'RL', 'RN', 'RP', 'RR', 'RS', 'RT', 'RU', 'RV', 'RW', 'RX', 'RY', 'RZ', 
+      'VA', 'VB', 'VC', 'VD', 'VE', 'VF', 'VG', 'VH', 'VI', 'VJ', 'VK', 'VL', 
+      'VM', 'VN', 'VO', 'VP', 'VQ', 'VR', 'VS', 'VT', 'VU', 'VV', 'VW', 'VX', 
+      'VY', 'VZ'
+    ],
+    'EMS Internacional': [
+      'EA', 'EB', 'EC', 'ED', 'EE', 'EF', 'EG', 'EH', 'EI', 'EJ', 'EK', 'EL', 
+      'EN', 'EO', 'EP', 'EQ', 'ER', 'ES', 'ET', 'EU', 'EV', 'EW', 'EX', 'EY', 'EZ'
+    ],
+    'Prime Internacional': [
+      'LA', 'LB', 'LC', 'LD', 'LE', 'LF', 'LG', 'LH', 'LI', 'LJ', 'LK', 'LL', 
+      'LM', 'LN', 'LO', 'LP', 'LQ', 'LR', 'LS', 'LT', 'LU', 'LV', 'LW', 'LX', 
+      'LY', 'LZ'
+    ],
+    'Packet Standard': ['NA', 'NB', 'NC', 'ND', 'NL', 'NM', 'NN', 'NO', 'NX'],
+    'Packet Express': ['IX', 'KL', 'YL'],
+    'Packet Mini': ['XP'],
+    
+    'Importação': [
+      'UA', 'UB', 'UC', 'UD', 'UE', 'UF', 'UG', 'UH', 'UI', 'UJ', 'UK', 'UL', 
+      'UM', 'UN', 'UO', 'UP', 'UQ', 'UR', 'US', 'UT', 'UU', 'UV', 'UW', 'UX', 
+      'UY', 'UZ'
+    ],
+    'Tributado': ['XR', 'XX', 'XA'],
+    
+    'Carta': [
+      'BD', 'BE', 'BG', 'BH', 'BI', 'BJ', 'BK', 'BL', 'BN', 'BO', 'BP', 'BR', 
+      'BT', 'BV', 'BY', 'BZ', 'DT', 'FJ', 'JA', 'JB', 'JD', 'JE', 'JF', 'JI', 
+      'JK', 'JQ', 'JV', 'JW', 'JX', 'JY', 'JZ', 'MH', 'MI', 'YB', 'YC'
+    ],
+    'Registrado': [
+      'FA', 'FB', 'FC', 'FD', 'FF', 'FH', 'FM', 'FR', 'JC', 'JG', 'JH', 'JJ', 
+      'JL', 'JO', 'JR', 'JS', 'JT', 'JU', 'RA', 'RC', 'RJ', 'RK', 'RM', 'RO', 
+      'RQ', 'YA', 'YG', 'YI', 'YJ', 'YM', 'YN', 'YO', 'YP', 'YQ', 'YR'
+    ],
+    'Mala Direta': ['JM', 'JN', 'MD', 'RE', 'YD'],
+    
+    'Expresso': ['BC', 'BF', 'DB', 'DC', 'DE', 'DI', 'DR', 'DS', 'ST', 'SV', 'SY', 'YF'],
+    'Telegrama': [
+      'MA', 'MB', 'MC', 'ME', 'MF', 'MG', 'MJ', 'MK', 'MM', 'MN', 'MO', 'MP', 
+      'MT', 'MV', 'MW', 'MY', 'MZ', 'NE'
+    ],
+    'Logística': [
+      'FE', 'IA', 'IB', 'IC', 'ID', 'IE', 'IH', 'II', 'IK', 'IM', 'IP', 'IR', 
+      'IS', 'IT', 'IU'
+    ],
+    'Sedex Mundi': ['EM', 'XM'],
   };
+
+  // Cache para o mapa reverso (gerado sob demanda)
+  static Map<String, String>? _cachedPrefixMap;
+
+  // Getter que constrói o mapa apenas uma vez
+  static Map<String, String> get _prefixMap {
+    if (_cachedPrefixMap != null) return _cachedPrefixMap!;
+    
+    _cachedPrefixMap = {};
+    _prefixGroups.forEach((type, prefixes) {
+      for (var prefix in prefixes) {
+        _cachedPrefixMap![prefix] = type;
+      }
+    });
+    return _cachedPrefixMap!;
+  }
 
   // Lógica da API Wonca Labs
   static Future<List<TrackingEvent>> trackPackage(String trackingCode, {int retryCount = 0}) async {
@@ -183,8 +127,7 @@ class TrackingService {
       );
 
       debugPrint('📊 Status code: ${response.statusCode}');
-      debugPrint('📄 Tamanho da resposta: ${response.body.length} caracteres');
-
+      
       if (response.statusCode == 200) {
         try {
           final data = json.decode(response.body);
@@ -247,14 +190,12 @@ class TrackingService {
           debugPrint('❌ Erro ao parsear JSON: $e');
           debugPrint('Stack: ${stack.toString().substring(0, 300)}');
         }
-        debugPrint('⚠️ Nenhum evento encontrado na resposta');
       } else {
         debugPrint('❌ Erro HTTP: ${response.statusCode}');
-        debugPrint('📄 Body: ${response.body}');
       }
 
       return [];
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint('❌ Erro ao rastrear: $e');
 
       // Retry logic - tenta até 3 vezes
@@ -265,7 +206,6 @@ class TrackingService {
       }
 
       debugPrint('❌ Falhou após 3 tentativas');
-      debugPrint('Stack: ${stackTrace.toString().substring(0, 200)}');
       return [];
     }
   }
@@ -278,44 +218,41 @@ class TrackingService {
 
     final prefix = trackingCode.substring(0, 2).toUpperCase();
     
-    // 1. Tenta encontrar a sigla exata no mapa
+    // 1. Tenta encontrar a sigla específica no mapa gerado
     if (_prefixMap.containsKey(prefix)) {
       return _prefixMap[prefix]!;
     }
 
-    // 2. Fallback por letra inicial se não estiver no mapa
+    // 2. Fallback genérico por letra inicial (caso a sigla não esteja na lista)
     final firstLetter = prefix[0];
     
     switch (firstLetter) {
-      case 'A': // Geralmente SEDEX ou PAC
+      case 'A': // Geralmente SEDEX ou PAC (Misturados)
       case 'D': // Geralmente SEDEX
       case 'O': // Geralmente SEDEX ou PAC
-      case 'S': // Geralmente SEDEX
+      case 'S': 
         if (prefix.startsWith('S')) return 'SEDEX';
         return 'Encomenda Nacional';
         
-      case 'E': // Geralmente EMS
-        return 'EMS Internacional';
+      case 'E': return 'EMS Internacional';
+      case 'F': return 'Sedex/Registrado'; // Alguns F são sedex
         
-      case 'L': // Geralmente Prime
-      case 'C': // Geralmente Colis
-      case 'U': // Geralmente Importação
-      case 'V': // Geralmente Valor Declarado Int
-      case 'R': // Pode ser registrado ou internacional
+      case 'L': // Prime
+      case 'C': // Colis
+      case 'U': // Importação
+      case 'V': // Valor Declarado
+      case 'R': // Registrado
         return 'Internacional/Registrado';
         
-      case 'P': // Geralmente PAC
-        return 'PAC';
+      case 'P': return 'PAC';
+      case 'I': return 'Internacional';
         
-      case 'I': // Geralmente Internacional ou Integrada
-        return 'Internacional';
-        
-      case 'B': // Remessas
-      case 'J': // Registrados
+      case 'B': 
+      case 'J': 
         return 'Carta/Registrado';
         
       default:
-        return 'Outros';
+        return 'Encomenda (Outros)';
     }
   }
 
