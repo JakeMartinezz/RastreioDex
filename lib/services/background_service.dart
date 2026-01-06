@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:home_widget/home_widget.dart';
 import 'firebase_service.dart';
 import 'notification_service.dart';
 import 'tracking_service.dart';
@@ -23,7 +24,7 @@ void callbackDispatcher() {
           final packages = await firebaseService.getAllPackages();
           
           for (var package in packages) {
-            // Não verifica pacotes arquivados em background para economizar bateria/API
+            // Não verifica pacotes arquivados em background
             if (package.isArchived) continue;
 
             try {
@@ -37,9 +38,25 @@ void callbackDispatcher() {
                 );
 
                 if (hasUpdates) {
+                  final String currentTitle = package.customName ?? package.trackingCode;
+                  
+                  // --- ATUALIZAÇÃO DO WIDGET (Sincroniza apenas se for o item fixado) ---
+                  final String? pinnedTitle = await HomeWidget.getWidgetData<String>('pkg_title');
+                  
+                  if (pinnedTitle == currentTitle) {
+                    await HomeWidget.saveWidgetData<String>('pkg_status', result.events.first.status);
+                    await HomeWidget.saveWidgetData<String>('pkg_desc', result.events.first.description);
+                    
+                    await HomeWidget.updateWidget(
+                      name: 'TrackingWidgetProvider',
+                      androidName: 'TrackingWidgetProvider',
+                    );
+                  }
+                  // -------------------------------------------------------------------
+
                   debugPrint("🔔 Nova atualização para: ${package.trackingCode}");
                   await NotificationService.showNotification(
-                    'Atualização: ${package.customName ?? package.trackingCode}',
+                    'Atualização: $currentTitle',
                     result.events.first.description,
                   );
                 }
@@ -64,21 +81,15 @@ void callbackDispatcher() {
 
 class BackgroundService {
   static Future<void> initialize() async {
-    await Workmanager().initialize(
-      callbackDispatcher,
-      // isInDebugMode foi removido nas versões novas, não é mais necessário aqui
-    );
+    await Workmanager().initialize(callbackDispatcher);
   }
 
   static Future<void> registerPeriodicTask() async {
     await Workmanager().registerPeriodicTask(
       "1", // ID único da tarefa
       fetchBackgroundTask,
-      frequency: const Duration(minutes: 15), // Frequência mínima permitida
-      constraints: Constraints(
-        networkType: NetworkType.connected, // Só roda se houver internet
-      ),
-      // CORREÇÃO: Uso do ExistingPeriodicWorkPolicy para tarefas periódicas
+      frequency: const Duration(minutes: 15),
+      constraints: Constraints(networkType: NetworkType.connected),
       existingWorkPolicy: ExistingPeriodicWorkPolicy.replace,
     );
   }

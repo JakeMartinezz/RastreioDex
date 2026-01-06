@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:home_widget/home_widget.dart'; // NOVO IMPORT
 import '../models/package.dart';
 import '../models/tracking_event.dart';
 import '../services/firebase_service.dart';
@@ -23,7 +24,7 @@ class PackageDetailsScreen extends StatefulWidget {
 class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   final ScreenshotController _screenshotController = ScreenshotController();
-  
+
   bool _isRefreshing = false;
   bool _isSharing = false;
   late Package _currentPackage;
@@ -43,11 +44,55 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     return Icons.inventory_2;
   }
 
+  // --- NOVA FUNÇÃO: FIXAR NO WIDGET ---
+  Future<void> _pinToWidget() async {
+    final title = _currentPackage.customName ?? _currentPackage.trackingCode;
+
+    try {
+      // Salva os dados desta encomenda específica como a principal do Widget
+      await HomeWidget.saveWidgetData<String>('pkg_title', title);
+      await HomeWidget.saveWidgetData<String>(
+        'pkg_code',
+        _currentPackage.trackingCode,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'pkg_status',
+        _currentPackage.currentStatus,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'pkg_desc',
+        _currentPackage.events.isNotEmpty
+            ? _currentPackage.events.first.description
+            : 'Aguardando rastreamento',
+      );
+
+      // Solicita ao Android a atualização do Widget nativo
+      await HomeWidget.updateWidget(
+        name: 'TrackingWidgetProvider',
+        androidName: 'TrackingWidgetProvider',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('"$title" fixado na tela inicial!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Erro ao fixar no widget: $e');
+    }
+  }
+
   Future<void> _refreshTracking() async {
     setState(() => _isRefreshing = true);
 
     try {
-      final result = await TrackingService.trackPackage(_currentPackage.trackingCode);
+      final result = await TrackingService.trackPackage(
+        _currentPackage.trackingCode,
+      );
 
       if (result.events.isNotEmpty) {
         final updatedPackage = _currentPackage.copyWith(
@@ -61,6 +106,16 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
 
         if (mounted) {
           setState(() => _currentPackage = updatedPackage);
+
+          // Opcional: Atualizar widget automaticamente se este for o item fixado
+          final String? pinnedTitle = await HomeWidget.getWidgetData<String>(
+            'pkg_title',
+          );
+          if (pinnedTitle ==
+              (_currentPackage.customName ?? _currentPackage.trackingCode)) {
+            await _pinToWidget();
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Rastreamento atualizado')),
           );
@@ -68,15 +123,17 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Nenhuma atualização disponível no momento')),
+            const SnackBar(
+              content: Text('Nenhuma atualização disponível no momento'),
+            ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao atualizar: $e')));
       }
     } finally {
       if (mounted) {
@@ -102,55 +159,59 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
 
   void _copyTrackingCode() {
     Clipboard.setData(ClipboardData(text: _currentPackage.trackingCode));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Código copiado')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Código copiado')));
   }
-  
+
   Future<void> _sharePackage() async {
     if (_isSharing) return;
 
     setState(() => _isSharing = true);
 
     try {
-      final Uint8List imageBytes = await _screenshotController.captureFromWidget(
-        _buildShareImageWidget(context),
-        delay: const Duration(milliseconds: 10),
-        pixelRatio: 2.0,
-      );
+      final Uint8List imageBytes = await _screenshotController
+          .captureFromWidget(
+            _buildShareImageWidget(context),
+            delay: const Duration(milliseconds: 10),
+            pixelRatio: 2.0,
+          );
 
       final directory = await getTemporaryDirectory();
-      final imagePath = '${directory.path}/share_${_currentPackage.trackingCode}.png';
+      final imagePath =
+          '${directory.path}/share_${_currentPackage.trackingCode}.png';
       final imageFile = File(imagePath);
       await imageFile.writeAsBytes(imageBytes);
 
       String shareText = '📦 *RastreioDex*\n';
-      shareText += '${_currentPackage.customName ?? "Encomenda"}: ${_currentPackage.trackingCode}\n\n';
+      shareText +=
+          '${_currentPackage.customName ?? "Encomenda"}: ${_currentPackage.trackingCode}\n\n';
 
       if (_currentPackage.estimatedDelivery != null) {
-        final dateFormated = DateFormat('dd/MM/yyyy').format(_currentPackage.estimatedDelivery!);
+        final dateFormated = DateFormat(
+          'dd/MM/yyyy',
+        ).format(_currentPackage.estimatedDelivery!);
         shareText += '🛍️ *Previsão de Entrega:* $dateFormated\n\n';
       }
-      
+
       if (_currentPackage.events.isNotEmpty) {
         final lastEvent = _currentPackage.events.first;
         shareText += '📍 *${lastEvent.status}*\n';
         shareText += '${lastEvent.description}\n';
-        shareText += '${lastEvent.location} - ${DateFormat('dd/MM HH:mm').format(lastEvent.dateTime)}';
+        shareText +=
+            '${lastEvent.location} - ${DateFormat('dd/MM HH:mm').format(lastEvent.dateTime)}';
       } else {
         shareText += 'Aguardando atualizações...';
       }
 
-      await Share.shareXFiles(
-        [XFile(imagePath)],
-        text: shareText,
-      );
-
+      await Share.shareXFiles([XFile(imagePath)], text: shareText);
     } catch (e) {
       debugPrint('Erro ao compartilhar: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erro ao gerar imagem para compartilhar')),
+          const SnackBar(
+            content: Text('Erro ao gerar imagem para compartilhar'),
+          ),
         );
       }
     } finally {
@@ -162,8 +223,8 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
 
   Widget _buildShareImageWidget(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-    final lastEvent = _currentPackage.events.isNotEmpty 
-        ? _currentPackage.events.first 
+    final lastEvent = _currentPackage.events.isNotEmpty
+        ? _currentPackage.events.first
         : null;
 
     return Container(
@@ -185,7 +246,11 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                   color: Colors.blue[600],
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.local_shipping, color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.local_shipping,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Text(
@@ -230,14 +295,23 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.shopping_bag_outlined, size: 18, color: Colors.green[700]),
+                  Icon(
+                    Icons.shopping_bag_outlined,
+                    size: 18,
+                    color: Colors.green[700],
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Previsão: ',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[800]),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[800],
+                    ),
                   ),
                   Text(
-                    DateFormat('dd/MM/yyyy').format(_currentPackage.estimatedDelivery!),
+                    DateFormat(
+                      'dd/MM/yyyy',
+                    ).format(_currentPackage.estimatedDelivery!),
                     style: TextStyle(color: Colors.green[800]),
                   ),
                 ],
@@ -312,15 +386,25 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-    final isDark = Theme.of(context).brightness == Brightness.dark; // CORREÇÃO: Detecta modo escuro
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_currentPackage.customName ?? 'Detalhes'),
         actions: [
+          // NOVO: ÍCONE PARA FIXAR NO WIDGET
           IconButton(
-            icon: _isSharing 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            icon: const Icon(Icons.push_pin_outlined),
+            tooltip: 'Fixar na Tela Inicial',
+            onPressed: (_isSharing || _isRefreshing) ? null : _pinToWidget,
+          ),
+          IconButton(
+            icon: _isSharing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.share),
             tooltip: 'Compartilhar Status',
             onPressed: (_isSharing || _isRefreshing) ? null : _sharePackage,
@@ -338,6 +422,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.refresh),
+            tooltip: 'Atualizar agora',
             onPressed: (_isSharing || _isRefreshing) ? null : _refreshTracking,
           ),
         ],
@@ -347,9 +432,11 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              color: isDark 
-                  ? Colors.grey[900] // CORREÇÃO: Cor de fundo adequada para modo escuro
-                  : Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(76),
+              color: isDark
+                  ? Colors.grey[900]
+                  : Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest.withAlpha(76),
               padding: const EdgeInsets.all(20),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,20 +446,22 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isDark 
-                            ? Colors.blue.withAlpha(51) // CORREÇÃO: Fundo do ícone visível no escuro
+                        color: isDark
+                            ? Colors.blue.withAlpha(51)
                             : Theme.of(context).primaryColor.withAlpha(25),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
                         _getPackageIcon(),
                         size: 32,
-                        color: isDark ? Colors.blue[300] : Theme.of(context).primaryColor, // CORREÇÃO: Ícone azul claro no escuro
+                        color: isDark
+                            ? Colors.blue[300]
+                            : Theme.of(context).primaryColor,
                       ),
                     ),
                   ),
                   const SizedBox(width: 16),
-                  
+
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,10 +483,12 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            color: isDark 
-                                ? Colors.blue.withAlpha(51) // CORREÇÃO: Fundo da etiqueta de tipo
+                            color: isDark
+                                ? Colors.blue.withAlpha(51)
                                 : Theme.of(context).primaryColor.withAlpha(25),
                             borderRadius: BorderRadius.circular(4),
                           ),
@@ -406,7 +497,9 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.blue[200] : Theme.of(context).primaryColor, // CORREÇÃO: Texto legível no escuro
+                              color: isDark
+                                  ? Colors.blue[200]
+                                  : Theme.of(context).primaryColor,
                             ),
                           ),
                         ),
@@ -414,15 +507,22 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              Icon(Icons.event_available,
-                                  size: 16, color: isDark ? Colors.blue[300] : Colors.blue[700]),
+                              Icon(
+                                Icons.event_available,
+                                size: 16,
+                                color: isDark
+                                    ? Colors.blue[300]
+                                    : Colors.blue[700],
+                              ),
                               const SizedBox(width: 6),
                               Text(
                                 'Previsão: ${DateFormat('dd/MM/yyyy').format(_currentPackage.estimatedDelivery!)}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.blue[200] : Colors.blue[700],
+                                  color: isDark
+                                      ? Colors.blue[200]
+                                      : Colors.blue[700],
                                 ),
                               ),
                             ],
@@ -432,15 +532,22 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              Icon(Icons.update,
-                                  size: 16, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                              Icon(
+                                Icons.update,
+                                size: 16,
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                              ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   'Atualizado em ${dateFormat.format(_currentPackage.lastUpdate!)}',
                                   style: TextStyle(
                                     fontSize: 13,
-                                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                    color: isDark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[600],
                                   ),
                                 ),
                               ),
@@ -452,9 +559,12 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                   ),
                   IconButton(
                     style: IconButton.styleFrom(
-                      backgroundColor: isDark ? Colors.grey[800] : Theme.of(context).colorScheme.surface,
+                      backgroundColor: isDark
+                          ? Colors.grey[800]
+                          : Theme.of(context).colorScheme.surface,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     icon: const Icon(Icons.copy_all),
                     onPressed: _copyTrackingCode,
@@ -600,10 +710,17 @@ class TimelineTile extends StatelessWidget {
                     height: 32,
                     decoration: BoxDecoration(
                       color: Theme.of(context).scaffoldBackgroundColor,
-                      border: Border.all(color: isDark ? Colors.grey[700]! : Colors.grey[300]!, width: 2),
+                      border: Border.all(
+                        color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                        width: 2,
+                      ),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(icon, size: 16, color: isDark ? Colors.grey[400] : Colors.grey[500]),
+                    child: Icon(
+                      icon,
+                      size: 16,
+                      color: isDark ? Colors.grey[400] : Colors.grey[500],
+                    ),
                   ),
                 if (!isLast)
                   Expanded(
@@ -653,28 +770,43 @@ class TimelineTile extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.place, size: 14, color: isDark ? Colors.grey[400] : Colors.grey[500]),
+                      Icon(
+                        Icons.place,
+                        size: 14,
+                        color: isDark ? Colors.grey[400] : Colors.grey[500],
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           event.location,
-                          style:
-                              TextStyle(fontSize: 12, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[800] : Colors.grey[100],
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: isDark ? Colors.grey[700]! : Colors.grey[200]!)),
+                          color: isDark ? Colors.grey[800] : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.grey[700]!
+                                : Colors.grey[200]!,
+                          ),
+                        ),
                         child: Text(
                           dateFormat.format(event.dateTime),
-                          style:
-                              TextStyle(fontSize: 11, color: isDark ? Colors.grey[300] : Colors.grey[700]),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.grey[300] : Colors.grey[700],
+                          ),
                         ),
                       ),
                     ],
@@ -712,9 +844,10 @@ class _PulsingIconState extends State<PulsingIcon>
       duration: const Duration(seconds: 2),
     )..repeat();
 
-    _animation = Tween<double>(begin: 0, end: 10).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _animation = Tween<double>(
+      begin: 0,
+      end: 10,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -739,8 +872,9 @@ class _PulsingIconState extends State<PulsingIcon>
                 height: 32 + _animation.value,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: widget.color
-                      .withAlpha(((1 - _controller.value) * 76).toInt()),
+                  color: widget.color.withAlpha(
+                    ((1 - _controller.value) * 76).toInt(),
+                  ),
                 ),
               );
             },
@@ -756,7 +890,7 @@ class _PulsingIconState extends State<PulsingIcon>
                   color: widget.color.withAlpha(102),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
-                )
+                ),
               ],
             ),
             child: Icon(widget.icon, size: 18, color: Colors.white),
