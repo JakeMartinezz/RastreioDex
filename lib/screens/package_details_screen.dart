@@ -27,6 +27,16 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     _currentPackage = widget.package;
   }
 
+  // Helper para o ícone (igual ao Card)
+  IconData _getPackageIcon() {
+    if (_currentPackage.type.contains('SEDEX')) {
+      return Icons.flash_on;
+    } else if (_currentPackage.type.contains('PAC')) {
+      return Icons.local_shipping;
+    }
+    return Icons.inventory_2;
+  }
+
   Future<void> _refreshTracking() async {
     setState(() => _isRefreshing = true);
 
@@ -123,18 +133,43 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
           children: [
             // CABEÇALHO DO PACOTE
             Container(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              color: Theme.of(context)
+                  .colorScheme
+                  .surfaceContainerHighest
+                  .withValues(alpha: 0.3),
               padding: const EdgeInsets.all(20),
-              child: Column(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
+                  // --- HERO 1: ÍCONE ---
+                  Hero(
+                    tag: 'icon_${_currentPackage.id}',
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        _getPackageIcon(),
+                        size: 32,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  
+                  // TEXTOS
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // --- HERO 2: TÍTULO/CÓDIGO ---
+                        Hero(
+                          tag: 'title_${_currentPackage.id}',
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: Text(
                               _currentPackage.trackingCode,
                               style: const TextStyle(
                                 fontSize: 22,
@@ -142,51 +177,58 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                                 letterSpacing: 1,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                _currentPackage.type.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).primaryColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        style: IconButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.surface,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Icons.copy_all),
-                        onPressed: _copyTrackingCode,
-                      ),
-                    ],
-                  ),
-                  if (_currentPackage.lastUpdate != null) ...[
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Icon(Icons.update, size: 16, color: Colors.grey[600]),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Atualizado em ${dateFormat.format(_currentPackage.lastUpdate!)}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
                           ),
                         ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .primaryColor
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _currentPackage.type.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                          ),
+                        ),
+                        if (_currentPackage.lastUpdate != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.update,
+                                  size: 16, color: Colors.grey[600]),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Atualizado em ${dateFormat.format(_currentPackage.lastUpdate!)}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
-                  ],
+                  ),
+                  IconButton(
+                    style: IconButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.surface,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.copy_all),
+                    onPressed: _copyTrackingCode,
+                  ),
                 ],
               ),
             ),
@@ -216,7 +258,8 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                       itemBuilder: (context, index) {
                         final event = _currentPackage.events[index];
                         final isFirst = index == 0;
-                        final isLast = index == _currentPackage.events.length - 1;
+                        final isLast =
+                            index == _currentPackage.events.length - 1;
 
                         return TimelineTile(
                           event: event,
@@ -270,25 +313,41 @@ class TimelineTile extends StatelessWidget {
     required this.dateFormat,
   });
 
-  // Define o ícone com base no texto do status
   IconData _getIcon() {
     final status = event.status.toLowerCase();
-    if (status.contains('entregue')) return Icons.check_circle;
-    if (status.contains('saiu') || status.contains('trânsito')) return Icons.local_shipping;
-    if (status.contains('postado')) return Icons.inventory_2;
-    if (status.contains('fiscaliza') || status.contains('aduaneira')) return Icons.policy;
-    if (status.contains('pagamento')) return Icons.payments;
+    if (status.contains('entregue')) {
+      return Icons.check_circle;
+    }
+    if (status.contains('saiu') || status.contains('trânsito')) {
+      return Icons.local_shipping;
+    }
+    if (status.contains('postado')) {
+      return Icons.inventory_2;
+    }
+    if (status.contains('fiscaliza') || status.contains('aduaneira')) {
+      return Icons.policy;
+    }
+    if (status.contains('pagamento')) {
+      return Icons.payments;
+    }
     return Icons.circle;
   }
 
-  // Define a cor com base no status
   Color _getColor(BuildContext context) {
     final status = event.status.toLowerCase();
-    if (status.contains('entregue')) return Colors.green;
-    if (status.contains('saiu') || status.contains('trânsito')) return Colors.blue;
-    if (status.contains('aguardando') || status.contains('postado')) return Colors.amber[700]!;
-    if (status.contains('tributado') || status.contains('taxa')) return Colors.red;
-    
+    if (status.contains('entregue')) {
+      return Colors.green;
+    }
+    if (status.contains('saiu') || status.contains('trânsito')) {
+      return Colors.blue;
+    }
+    if (status.contains('aguardando') || status.contains('postado')) {
+      return Colors.amber[700]!;
+    }
+    if (status.contains('tributado') || status.contains('taxa')) {
+      return Colors.red;
+    }
+
     return Theme.of(context).primaryColor;
   }
 
@@ -301,12 +360,10 @@ class TimelineTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // COLUNA DA LINHA E ÍCONE
           SizedBox(
             width: 40,
             child: Column(
               children: [
-                // Ícone ou Bolinha
                 if (isFirst)
                   PulsingIcon(icon: icon, color: color)
                 else
@@ -320,8 +377,6 @@ class TimelineTile extends StatelessWidget {
                     ),
                     child: Icon(icon, size: 16, color: Colors.grey[500]),
                   ),
-                
-                // Linha Vertical
                 if (!isLast)
                   Expanded(
                     child: Container(
@@ -337,8 +392,6 @@ class TimelineTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          
-          // CONTEÚDO DO EVENTO
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 32),
@@ -350,11 +403,14 @@ class TimelineTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: isFirst ? FontWeight.bold : FontWeight.w500,
-                      color: isFirst ? color : Theme.of(context).colorScheme.onSurface,
+                      color: isFirst
+                          ? color
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  if (event.description.isNotEmpty && event.description != event.status)
+                  if (event.description.isNotEmpty &&
+                      event.description != event.status)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Text(
@@ -374,21 +430,23 @@ class TimelineTile extends StatelessWidget {
                       Expanded(
                         child: Text(
                           event.location,
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600]),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[200]!)
-                        ),
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[200]!)),
                         child: Text(
                           dateFormat.format(event.dateTime),
-                          style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+                          style:
+                              TextStyle(fontSize: 11, color: Colors.grey[700]),
                         ),
                       ),
                     ],
@@ -403,7 +461,6 @@ class TimelineTile extends StatelessWidget {
   }
 }
 
-// Widget animado para o status mais recente
 class PulsingIcon extends StatefulWidget {
   final IconData icon;
   final Color color;
@@ -414,7 +471,8 @@ class PulsingIcon extends StatefulWidget {
   State<PulsingIcon> createState() => _PulsingIconState();
 }
 
-class _PulsingIconState extends State<PulsingIcon> with SingleTickerProviderStateMixin {
+class _PulsingIconState extends State<PulsingIcon>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
@@ -425,7 +483,7 @@ class _PulsingIconState extends State<PulsingIcon> with SingleTickerProviderStat
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
-    
+
     _animation = Tween<double>(begin: 0, end: 10).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
@@ -445,21 +503,20 @@ class _PulsingIconState extends State<PulsingIcon> with SingleTickerProviderStat
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Onda Pulsante
           AnimatedBuilder(
             animation: _animation,
             builder: (context, child) {
               return Container(
-                width: 32 + _animation.value, // Expande
+                width: 32 + _animation.value,
                 height: 32 + _animation.value,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: widget.color.withValues(alpha: (1 - _controller.value) * 0.3), // Desaparece
+                  color: widget.color
+                      .withValues(alpha: (1 - _controller.value) * 0.3),
                 ),
               );
             },
           ),
-          // Ícone Principal
           Container(
             width: 32,
             height: 32,

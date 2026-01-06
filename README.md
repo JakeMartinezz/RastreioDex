@@ -17,11 +17,16 @@ RastreioDex é um aplicativo móvel desenvolvido em Flutter que permite rastrear
 - **Rastreamento em Tempo Real**: Acompanhe suas encomendas através da API Wonca Labs
 - **Múltiplos Tipos de Encomenda**: Suporte para SEDEX, PAC, SEDEX Hoje, encomendas internacionais e mais
 - **Notificações Push**: Receba alertas automáticos sobre mudanças no status das suas encomendas
-- **Atualização Automática**: O app verifica atualizações a cada 15 minutos em segundo plano
+- **Atualização Automática**: O app verifica atualizações em segundo plano
 - **Nomes Personalizados**: Dê apelidos às suas encomendas para fácil identificação
 - **Tema Adaptativo**: Interface com suporte a modo claro e escuro
 - **Histórico Completo**: Visualize todo o histórico de movimentação de cada encomenda
 - **Validação de Código**: Verifica automaticamente se o código de rastreamento é válido
+- **Smart Paste**: Detecção automática de códigos de rastreamento na área de transferência
+- **Sistema de Arquivamento**: Organize encomendas entregues em abas separadas
+- **Swipe Actions**: Deslize para arquivar, desarquivar ou excluir encomendas
+- **Reordenação**: Arraste e solte para reorganizar suas encomendas
+- **Configurações Personalizáveis**: Ajuste frequência de atualização, API key e comportamento do app
 
 ## Tipos de Encomenda Suportados
 
@@ -45,29 +50,32 @@ O aplicativo identifica automaticamente o tipo de encomenda pelo código de rast
 - **HTTP** - Requisições para API de rastreamento
 - **Adaptive Theme** - Gerenciamento de temas claro/escuro
 - **Flutter Local Notifications** - Notificações locais
+- **Shared Preferences** - Armazenamento de configurações locais
 
 ## Estrutura do Projeto
 
 ```
 lib/
-├── main.dart                      # Ponto de entrada do aplicativo
-├── models/                        # Modelos de dados
-│   ├── package.dart              # Modelo de encomenda
-│   └── tracking_event.dart       # Modelo de evento de rastreamento
-├── screens/                       # Telas do aplicativo
-│   ├── home_screen.dart          # Tela principal com lista de encomendas
-│   ├── add_package_screen.dart   # Tela para adicionar nova encomenda
-│   ├── edit_package_screen.dart  # Tela para editar encomenda
+├── main.dart                        # Ponto de entrada do aplicativo
+├── models/                          # Modelos de dados
+│   ├── package.dart                # Modelo de encomenda
+│   └── tracking_event.dart         # Modelo de evento de rastreamento
+├── screens/                         # Telas do aplicativo
+│   ├── home_screen.dart            # Tela principal com abas (Ativos/Arquivados)
+│   ├── add_package_screen.dart     # Tela para adicionar nova encomenda
+│   ├── edit_package_screen.dart    # Tela para editar encomenda
 │   ├── package_details_screen.dart # Detalhes e histórico da encomenda
-│   └── debug_screen.dart         # Tela de debug (desenvolvimento)
-├── services/                      # Serviços e lógica de negócio
-│   ├── tracking_service.dart     # Integração com API de rastreamento
-│   ├── firebase_service.dart     # Gerenciamento do Firebase
-│   ├── notification_service.dart # Gerenciamento de notificações
-│   ├── background_service.dart   # Tarefas em segundo plano
-│   └── theme_service.dart        # Configuração de temas
-└── widgets/                       # Componentes reutilizáveis
-    └── package_card.dart         # Card de encomenda
+│   ├── settings_screen.dart        # Tela de configurações do app
+│   └── debug_screen.dart           # Tela de debug (desenvolvimento)
+├── services/                        # Serviços e lógica de negócio
+│   ├── tracking_service.dart       # Integração com API de rastreamento
+│   ├── firebase_service.dart       # Gerenciamento do Firebase
+│   ├── notification_service.dart   # Gerenciamento de notificações
+│   ├── background_service.dart     # Tarefas em segundo plano
+│   ├── preferences_service.dart    # Gerenciamento de configurações locais
+│   └── theme_service.dart          # Configuração de temas
+└── widgets/                         # Componentes reutilizáveis
+    └── package_card.dart           # Card de encomenda
 ```
 
 ## Requisitos

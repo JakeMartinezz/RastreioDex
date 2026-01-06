@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'; // Necessário para acessar o Clipboard
 import '../models/package.dart';
 import '../services/firebase_service.dart';
 import '../services/tracking_service.dart';
+import '../services/preferences_service.dart'; // Importe o serviço de preferências
 import 'package_details_screen.dart';
 
 class AddPackageScreen extends StatefulWidget {
@@ -31,20 +32,27 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
 
   /// Verifica se há um código de rastreio válido na área de transferência
   Future<void> _checkClipboardAndAutoPaste() async {
+    // 1. Verifica nas configurações se o Smart Paste está ativo
+    final isEnabled = await PreferencesService.getSmartPaste();
+    if (!isEnabled) {
+      debugPrint('📋 Smart Paste desativado nas configurações.');
+      return; 
+    }
+
     try {
-      // 1. Obtém o texto da área de transferência
+      // 2. Obtém o texto da área de transferência
       final data = await Clipboard.getData(Clipboard.kTextPlain);
       if (data?.text == null) return;
 
       final text = data!.text!.trim().toUpperCase();
 
-      // 2. Valida se é um formato de rastreio válido
+      // 3. Valida se é um formato de rastreio válido
       if (!TrackingService.isValidTrackingCode(text)) return;
 
-      // 3. Se o usuário já digitou algo, não sobrescrevemos
+      // 4. Se o usuário já digitou algo, não sobrescrevemos
       if (_trackingCodeController.text.isNotEmpty) return;
 
-      // 4. Verifica se já existe cadastrado (Evita duplicatas)
+      // 5. Verifica se já existe cadastrado (Evita duplicatas)
       final packages = await _firebaseService.getAllPackages();
       final isDuplicate = packages.any((p) => p.trackingCode == text);
 
@@ -53,7 +61,7 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
         return;
       }
 
-      // 5. Se passou por tudo, cola automaticamente
+      // 6. Se passou por tudo, cola automaticamente
       if (mounted) {
         setState(() {
           _trackingCodeController.text = text;
@@ -153,13 +161,24 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
     } catch (e, stackTrace) {
       debugPrint('❌ ERRO ao adicionar: $e');
       debugPrint('Stack trace: $stackTrace');
+      
+      String errorMessage = 'Erro ao buscar encomenda';
+      // Trata o erro amigável da API Key
+      if (e.toString().contains('Chave de API')) {
+        errorMessage = 'Configure sua Chave de API nas configurações!';
+      } else {
+         errorMessage = 'Erro: $e';
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro: $e'),
+            content: Text(errorMessage),
             duration: const Duration(seconds: 5),
+            backgroundColor: Colors.red,
             action: SnackBarAction(
               label: 'OK',
+              textColor: Colors.white,
               onPressed: () {},
             ),
           ),

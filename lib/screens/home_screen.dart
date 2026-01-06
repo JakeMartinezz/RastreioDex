@@ -5,8 +5,10 @@ import '../models/package.dart';
 import '../services/firebase_service.dart';
 import '../services/tracking_service.dart';
 import '../services/notification_service.dart';
+import '../services/preferences_service.dart';
 import 'add_package_screen.dart';
 import 'package_details_screen.dart';
+import 'settings_screen.dart';
 import '../widgets/package_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -18,15 +20,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final FirebaseService _firebaseService = FirebaseService();
-  bool _isRefreshing = false;
   
   late TabController _tabController;
   int _currentTabIndex = 0;
 
-  // Lista local para Ativos (permite reordenar sem pulos)
   List<Package> _activePackages = [];
   StreamSubscription? _activeSubscription;
   bool _isActiveLoading = true;
+  
+  // Preferências
+  bool _hideDelivered = false;
+  // Não precisamos de uma variável de estado para _autoArchive aqui, 
+  // pois ela é usada apenas uma vez na função assíncrona.
 
   @override
   void initState() {
@@ -39,19 +44,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       });
     });
     
-    // Inicia ouvintes
+    // Carrega preferências e depois inicia lógica
+    _loadPreferencesAndSetup();
+  }
+
+  Future<void> _loadPreferencesAndSetup() async {
+    await _loadPreferences();
     _setupActiveStream();
-    _checkAutoArchive();
+    // Verifica se deve arquivar
+    await _checkAutoArchive();
+  }
+
+  Future<void> _loadPreferences() async {
+    final hide = await PreferencesService.getHideDelivered();
+    if (mounted) {
+      setState(() => _hideDelivered = hide);
+    }
   }
 
   void _setupActiveStream() {
-    // Escuta apenas os não arquivados
+    _activeSubscription?.cancel();
+
     _activeSubscription = _firebaseService
         .getPackagesStream(showArchived: false)
         .listen((packages) {
+      
+      // Filtro visual: Ocultar Entregues
+      var filteredPackages = packages;
+      if (_hideDelivered) {
+        filteredPackages = packages.where((p) {
+          return !p.currentStatus.toLowerCase().contains('entregue');
+        }).toList();
+      }
+
       if (mounted) {
         setState(() {
-          _activePackages = packages;
+          _activePackages = filteredPackages;
           _isActiveLoading = false;
         });
       }
@@ -62,7 +90,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _checkAutoArchive() async {
-    await _firebaseService.autoArchiveDeliveredPackages();
+    // 1. Verifica se a configuração está ativa
+    final shouldAutoArchive = await PreferencesService.getAutoArchive();
+    
+    // 2. Só executa se estiver TRUE
+    if (shouldAutoArchive) {
+      debugPrint('🧹 Executando arquivamento automático de entregues...');
+      await _firebaseService.autoArchiveDeliveredPackages();
+    } else {
+      debugPrint('🧹 Arquivamento automático desativado.');
+    }
   }
 
   @override
@@ -73,35 +110,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _refreshAllPackages() async {
-    setState(() => _isRefreshing = true);
     try {
+      // Verifica arquivamento ao atualizar também
       await _checkAutoArchive();
 
       final packages = await _firebaseService.getAllPackages();
       for (var package in packages) {
         if (package.isArchived) continue;
 
-        final events = await TrackingService.trackPackage(package.trackingCode);
-        if (events.isNotEmpty) {
-          final hasUpdates =
-              await _firebaseService.updatePackageTracking(package.id, events);
-          if (hasUpdates) {
-            await NotificationService.showNotification(
-              'Encomenda Atualizada',
-              '${package.customName ?? package.trackingCode}: ${events.first.description}',
-            );
+        try {
+          final events = await TrackingService.trackPackage(package.trackingCode);
+          if (events.isNotEmpty) {
+            final hasUpdates =
+                await _firebaseService.updatePackageTracking(package.id, events);
+            if (hasUpdates) {
+              await NotificationService.showNotification(
+                'Encomenda Atualizada',
+                '${package.customName ?? package.trackingCode}: ${events.first.description}',
+              );
+            }
           }
+        } catch (e) {
+          debugPrint('Erro ao atualizar pacote ${package.trackingCode}: $e');
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e')),
+          SnackBar(content: Text('Erro geral: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isRefreshing = false);
       }
     }
   }
@@ -144,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _deletePackage(Package package) async {
-     final confirm = await showDialog<bool>(
+      final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir Encomenda'),
@@ -173,14 +210,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Garante que usamos o brilho atual para a lógica de cores
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // DEFINIÇÃO DAS CORES PARA ANIMAÇÃO
-    // CORREÇÃO: Usando TabBarThemeData em vez de TabBarTheme para compatibilidade
     final customTabBarTheme = TabBarThemeData(
       indicator: BoxDecoration(
-        color: isDark ? Colors.grey[600] : Colors.white, // Cor da pílula (indicador)
+        color: isDark ? Colors.grey[600] : Colors.white,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
@@ -192,11 +226,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       indicatorSize: TabBarIndicatorSize.tab,
       dividerColor: Colors.transparent,
-      labelColor: isDark ? Colors.white : Colors.black, // Cor do texto selecionado
-      unselectedLabelColor: Colors.grey, // Cor do texto não selecionado
+      labelColor: isDark ? Colors.white : Colors.black,
+      unselectedLabelColor: Colors.grey,
       labelPadding: EdgeInsets.zero,
       labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-      overlayColor: WidgetStateProperty.all(Colors.transparent), // Remove splash
+      overlayColor: WidgetStateProperty.all(Colors.transparent),
     );
 
     return Scaffold(
@@ -207,10 +241,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           height: 36,
           constraints: const BoxConstraints(maxWidth: 300),
           decoration: BoxDecoration(
-            color: isDark ? Colors.grey[800] : Colors.grey[200], // Cor de fundo do container
+            color: isDark ? Colors.grey[800] : Colors.grey[200],
             borderRadius: BorderRadius.circular(20),
           ),
-          // Usamos AnimatedTheme para interpolar as propriedades do TabBar suavemente
           child: AnimatedTheme(
             data: Theme.of(context).copyWith(tabBarTheme: customTabBarTheme),
             duration: const Duration(milliseconds: 300),
@@ -237,12 +270,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             },
             tooltip: 'Alternar tema',
           ),
+          
           IconButton(
-            icon: _isRefreshing
-                ? const SizedBox(
-                    width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.refresh),
-            onPressed: _isRefreshing ? null : _refreshAllPackages,
+            icon: const Icon(Icons.settings),
+            tooltip: 'Configurações',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+              // Ao voltar, recarrega
+              await _loadPreferencesAndSetup();
+            },
           ),
         ],
       ),
@@ -280,9 +319,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Icon(Icons.inbox, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'Nenhuma encomenda ativa',
+              _hideDelivered 
+                  ? 'Nenhuma encomenda pendente' 
+                  : 'Nenhuma encomenda ativa',
               style: TextStyle(fontSize: 18, color: Colors.grey[600]),
             ),
+            if (_hideDelivered)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  '(Entregues estão ocultos)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                ),
+              ),
           ],
         ),
       );

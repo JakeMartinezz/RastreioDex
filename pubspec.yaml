@@ -19,6 +19,12 @@ dependencies:
   intl: ^0.20.2
   adaptive_theme: ^3.6.0
   flutter_local_notifications: ^19.5.0
+  shared_preferences: ^2.2.2
+  workmanager:
+    git:
+      url: https://github.com/fluttercommunity/flutter_workmanager.git
+      path: workmanager
+      ref: main
 
 dev_dependencies:
   flutter_test:

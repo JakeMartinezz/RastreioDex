@@ -5,7 +5,6 @@ import '../models/package.dart';
 class PackageCard extends StatelessWidget {
   final Package package;
   final VoidCallback onTap;
-  // onDelete removido pois agora é via swipe
 
   const PackageCard({
     super.key,
@@ -113,19 +112,23 @@ class PackageCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.blue.withValues(alpha: 0.2)
-                          : Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      _getPackageIcon(),
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.blue[300]
-                          : Theme.of(context).primaryColor,
+                  // --- HERO 1: ÍCONE ---
+                  Hero(
+                    tag: 'icon_${package.id}', // Tag única
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.blue.withValues(alpha: 0.2)
+                            : Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        _getPackageIcon(),
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.blue[300]
+                            : Theme.of(context).primaryColor,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -133,14 +136,21 @@ class PackageCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          package.customName ?? package.trackingCode,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        // --- HERO 2: TÍTULO/CÓDIGO ---
+                        Hero(
+                          tag: 'title_${package.id}', // Tag única
+                          child: Material(
+                            type: MaterialType.transparency, // Evita bug visual
+                            child: Text(
+                              package.customName ?? package.trackingCode,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -155,7 +165,6 @@ class PackageCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  // Botão de deletar removido daqui
                 ],
               ),
               const SizedBox(height: 12),

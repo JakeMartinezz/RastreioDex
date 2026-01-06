@@ -2,14 +2,13 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/tracking_event.dart';
+import '../services/preferences_service.dart'; // Importe o serviço de preferências
 
 class TrackingService {
-  // Chave de API e URL
-  static const String _apiKey = ''; // <--- INSIRA SUA CHAVE AQUI
+  // A URL continua fixa
   static const String _apiUrl = 'https://api-labs.wonca.com.br/wonca.labs.v1.LabsService/Track';
 
   // --- OTIMIZAÇÃO: GRUPOS DE PREFIXOS ---
-  // É muito mais fácil manter listas de siglas do que um mapa gigante de 1:1
   static const Map<String, List<String>> _prefixGroups = {
     'SEDEX': [
       'AA', 'AB', 'AC', 'AD', 'AE', 'AJ', 'AX', 'AY', 'DA', 'DF', 'DG', 'DH', 
@@ -24,7 +23,6 @@ class TrackingService {
     'SEDEX 12': ['DD', 'OE', 'SM', 'TD'],
     'SEDEX Hoje': ['AZ', 'OW', 'SJ', 'SP', 'TB'],
     'SEDEX a Cobrar': ['SC'],
-    
     'PAC': [
       'AK', 'AL', 'AQ', 'AS', 'OL', 'PA', 'PB', 'PD', 'PE', 'PF', 'PG', 'PH', 
       'PI', 'PJ', 'PK', 'PL', 'PM', 'PN', 'PO', 'PP', 'PS', 'PT', 'PU', 'PV', 
@@ -34,7 +32,6 @@ class TrackingService {
     ],
     'PAC Mini': ['AV', 'AW', 'PQ', 'PR', 'QO'],
     'PAC a Cobrar': ['PC'],
-    
     'Internacional': [
       'AR', 'CA', 'CB', 'CC', 'CD', 'CE', 'CF', 'CG', 'CH', 'CI', 'CJ', 'CK', 
       'CL', 'CM', 'CN', 'CO', 'CP', 'CQ', 'CR', 'CS', 'CT', 'CU', 'CV', 'CW', 
@@ -56,14 +53,12 @@ class TrackingService {
     'Packet Standard': ['NA', 'NB', 'NC', 'ND', 'NL', 'NM', 'NN', 'NO', 'NX'],
     'Packet Express': ['IX', 'KL', 'YL'],
     'Packet Mini': ['XP'],
-    
     'Importação': [
       'UA', 'UB', 'UC', 'UD', 'UE', 'UF', 'UG', 'UH', 'UI', 'UJ', 'UK', 'UL', 
       'UM', 'UN', 'UO', 'UP', 'UQ', 'UR', 'US', 'UT', 'UU', 'UV', 'UW', 'UX', 
       'UY', 'UZ'
     ],
     'Tributado': ['XR', 'XX', 'XA'],
-    
     'Carta': [
       'BD', 'BE', 'BG', 'BH', 'BI', 'BJ', 'BK', 'BL', 'BN', 'BO', 'BP', 'BR', 
       'BT', 'BV', 'BY', 'BZ', 'DT', 'FJ', 'JA', 'JB', 'JD', 'JE', 'JF', 'JI', 
@@ -75,7 +70,6 @@ class TrackingService {
       'RQ', 'YA', 'YG', 'YI', 'YJ', 'YM', 'YN', 'YO', 'YP', 'YQ', 'YR'
     ],
     'Mala Direta': ['JM', 'JN', 'MD', 'RE', 'YD'],
-    
     'Expresso': ['BC', 'BF', 'DB', 'DC', 'DE', 'DI', 'DR', 'DS', 'ST', 'SV', 'SY', 'YF'],
     'Telegrama': [
       'MA', 'MB', 'MC', 'ME', 'MF', 'MG', 'MJ', 'MK', 'MM', 'MN', 'MO', 'MP', 
@@ -88,10 +82,8 @@ class TrackingService {
     'Sedex Mundi': ['EM', 'XM'],
   };
 
-  // Cache para o mapa reverso (gerado sob demanda)
   static Map<String, String>? _cachedPrefixMap;
 
-  // Getter que constrói o mapa apenas uma vez
   static Map<String, String> get _prefixMap {
     if (_cachedPrefixMap != null) return _cachedPrefixMap!;
     
@@ -109,11 +101,19 @@ class TrackingService {
     try {
       debugPrint('🌐 Rastreando via Wonca Labs: $trackingCode (tentativa ${retryCount + 1}/3)');
 
+      // 1. Obter chave salva nas configurações
+      final apiKey = await PreferencesService.getApiKey();
+      
+      // Validação: Se não tiver chave, lança erro para ser tratado na UI
+      if (apiKey.isEmpty) {
+        throw Exception('Chave de API não configurada. Vá em Configurações para adicionar.');
+      }
+
       final response = await http.post(
         Uri.parse(_apiUrl),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Apikey $_apiKey',
+          'Authorization': 'Apikey $apiKey', // Usa a chave dinâmica
         },
         body: json.encode({
           'code': trackingCode,
@@ -140,7 +140,6 @@ class TrackingService {
               debugPrint('📋 Total de eventos: ${eventos.length}');
 
               final events = eventos.map((evento) {
-                // Parse da data
                 DateTime eventDate;
                 try {
                   if (evento['dtHrCriado'] != null && evento['dtHrCriado']['date'] != null) {
@@ -154,7 +153,6 @@ class TrackingService {
                   eventDate = DateTime.now();
                 }
 
-                // Descrição e local
                 final descricao = evento['descricao'] ?? evento['descricaoFrontEnd'] ?? '';
                 final descricaoWeb = evento['descricaoWeb'] ?? '';
 
@@ -198,11 +196,16 @@ class TrackingService {
     } catch (e) {
       debugPrint('❌ Erro ao rastrear: $e');
 
-      // Retry logic - tenta até 3 vezes
-      if (retryCount < 2) {
+      // Retry logic (apenas para erros de rede, não para erro de chave vazia)
+      if (retryCount < 2 && !e.toString().contains('Chave de API')) {
         debugPrint('🔄 Tentando novamente em 2 segundos...');
         await Future.delayed(const Duration(seconds: 2));
         return trackPackage(trackingCode, retryCount: retryCount + 1);
+      }
+
+      // Repassa o erro de chave vazia para que a tela mostre o SnackBar correto
+      if (e.toString().contains('Chave de API')) {
+        rethrow;
       }
 
       debugPrint('❌ Falhou após 3 tentativas');
@@ -210,7 +213,6 @@ class TrackingService {
     }
   }
 
-  // Lógica de classificação robusta
   static String getPackageType(String trackingCode) {
     if (trackingCode.isEmpty || trackingCode.length < 2) {
       return 'Outros';
@@ -218,39 +220,31 @@ class TrackingService {
 
     final prefix = trackingCode.substring(0, 2).toUpperCase();
     
-    // 1. Tenta encontrar a sigla específica no mapa gerado
     if (_prefixMap.containsKey(prefix)) {
       return _prefixMap[prefix]!;
     }
 
-    // 2. Fallback genérico por letra inicial (caso a sigla não esteja na lista)
     final firstLetter = prefix[0];
-    
     switch (firstLetter) {
-      case 'A': // Geralmente SEDEX ou PAC (Misturados)
-      case 'D': // Geralmente SEDEX
-      case 'O': // Geralmente SEDEX ou PAC
+      case 'A': 
+      case 'D': 
+      case 'O': 
       case 'S': 
         if (prefix.startsWith('S')) return 'SEDEX';
         return 'Encomenda Nacional';
-        
       case 'E': return 'EMS Internacional';
-      case 'F': return 'Sedex/Registrado'; // Alguns F são sedex
-        
-      case 'L': // Prime
-      case 'C': // Colis
-      case 'U': // Importação
-      case 'V': // Valor Declarado
-      case 'R': // Registrado
+      case 'F': return 'Sedex/Registrado'; 
+      case 'L': 
+      case 'C': 
+      case 'U': 
+      case 'V': 
+      case 'R': 
         return 'Internacional/Registrado';
-        
       case 'P': return 'PAC';
       case 'I': return 'Internacional';
-        
       case 'B': 
       case 'J': 
         return 'Carta/Registrado';
-        
       default:
         return 'Encomenda (Outros)';
     }
@@ -258,7 +252,6 @@ class TrackingService {
 
   static bool isValidTrackingCode(String code) {
     if (code.isEmpty) return false;
-    // Formato: 2 letras + 9 números + 2 letras
     final regex = RegExp(r'^[A-Z]{2}\d{9}[A-Z]{2}$');
     return regex.hasMatch(code.toUpperCase());
   }
