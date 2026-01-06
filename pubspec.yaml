@@ -25,6 +25,10 @@ dependencies:
       url: https://github.com/fluttercommunity/flutter_workmanager.git
       path: workmanager
       ref: main
+  
+  share_plus: ^10.0.0
+  screenshot: ^3.0.0
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:

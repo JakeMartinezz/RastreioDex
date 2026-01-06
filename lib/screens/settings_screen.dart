@@ -10,7 +10,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _hideDelivered = false;
-  bool _autoArchive = false; // NOVO ESTADO
+  bool _autoArchive = false;
   bool _smartPaste = true;
   String _updateFrequency = '1 hora';
   final TextEditingController _apiKeyController = TextEditingController();
@@ -81,7 +81,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(),
           _buildSectionHeader('Organização'),
 
-          // OPÇÃO 1: Ocultar Entregues
           SwitchListTile(
             secondary: const Icon(Icons.visibility_off),
             title: const Text('Ocultar Entregues'),
@@ -90,7 +89,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (val) {
               setState(() {
                 _hideDelivered = val;
-                // Lógica de exclusão mútua: Se ativar Ocultar, desativa Arquivar
                 if (val) {
                   _autoArchive = false;
                   PreferencesService.saveAutoArchive(false);
@@ -100,7 +98,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
 
-          // OPÇÃO 2: Arquivar Automaticamente (NOVO)
           SwitchListTile(
             secondary: const Icon(Icons.archive),
             title: const Text('Arquivar Entregues'),
@@ -109,7 +106,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (val) {
               setState(() {
                 _autoArchive = val;
-                // Lógica de exclusão mútua: Se ativar Arquivar, desativa Ocultar
                 if (val) {
                   _hideDelivered = false;
                   PreferencesService.saveHideDelivered(false);
@@ -184,23 +180,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showModalBottomSheet(
       context: context,
       builder: (context) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: _frequencyOptions.map((option) {
-            return RadioListTile<String>(
-              title: Text(option),
-              value: option,
-              groupValue: _updateFrequency,
-              controlAffinity: ListTileControlAffinity.leading,
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() => _updateFrequency = val);
-                  PreferencesService.saveUpdateFrequency(val);
-                  Navigator.pop(context);
-                }
-              },
-            );
-          }).toList(),
+        // CORRIGIDO: value -> groupValue
+        return RadioGroup<String>(
+          groupValue: _updateFrequency, 
+          onChanged: (val) {
+            if (val != null) {
+              setState(() => _updateFrequency = val);
+              PreferencesService.saveUpdateFrequency(val);
+              Navigator.pop(context);
+            }
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: _frequencyOptions.map((option) {
+              return RadioListTile<String>(
+                title: Text(option),
+                value: option,
+                controlAffinity: ListTileControlAffinity.leading,
+              );
+            }).toList(),
+          ),
         );
       },
     );

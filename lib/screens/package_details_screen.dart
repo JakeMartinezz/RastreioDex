@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:screenshot/screenshot.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/package.dart';
 import '../models/tracking_event.dart';
 import '../services/firebase_service.dart';
@@ -18,7 +22,10 @@ class PackageDetailsScreen extends StatefulWidget {
 
 class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   final FirebaseService _firebaseService = FirebaseService();
+  final ScreenshotController _screenshotController = ScreenshotController();
+  
   bool _isRefreshing = false;
+  bool _isSharing = false;
   late Package _currentPackage;
 
   @override
@@ -102,6 +109,213 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     );
   }
 
+  // --- LÓGICA DE COMPARTILHAMENTO ---
+  
+  Future<void> _sharePackage() async {
+    if (_isSharing) return;
+
+    setState(() => _isSharing = true);
+
+    try {
+      // 1. Gera a imagem a partir do Widget customizado
+      final Uint8List imageBytes = await _screenshotController.captureFromWidget(
+        _buildShareImageWidget(context),
+        delay: const Duration(milliseconds: 10),
+        pixelRatio: 2.0, // Alta resolução
+      );
+
+      // 2. Salva em arquivo temporário
+      final directory = await getTemporaryDirectory();
+      final imagePath = '${directory.path}/share_${_currentPackage.trackingCode}.png';
+      final imageFile = File(imagePath);
+      await imageFile.writeAsBytes(imageBytes);
+
+      // 3. Monta o texto de legenda
+      String shareText = '📦 *RastreioDex*\n';
+      shareText += '${_currentPackage.customName ?? "Encomenda"}: ${_currentPackage.trackingCode}\n\n';
+      
+      if (_currentPackage.events.isNotEmpty) {
+        final lastEvent = _currentPackage.events.first;
+        shareText += '📍 *${lastEvent.status}*\n';
+        shareText += '${lastEvent.description}\n';
+        shareText += '${lastEvent.location} - ${DateFormat('dd/MM HH:mm').format(lastEvent.dateTime)}';
+      } else {
+        shareText += 'Aguardando atualizações...';
+      }
+
+      // 4. Abre o compartilhamento nativo
+      await Share.shareXFiles(
+        [XFile(imagePath)],
+        text: shareText,
+      );
+
+    } catch (e) {
+      debugPrint('Erro ao compartilhar: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro ao gerar imagem para compartilhar')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSharing = false);
+      }
+    }
+  }
+
+  // Widget visualmente bonito criado apenas para ser transformado em imagem
+  Widget _buildShareImageWidget(BuildContext context) {
+    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final lastEvent = _currentPackage.events.isNotEmpty 
+        ? _currentPackage.events.first 
+        : null;
+
+    return Container(
+      width: 350, // Largura fixa para consistência
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Cabeçalho RastreioDex
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[600],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.local_shipping, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'RastreioDex',
+                style: TextStyle(
+                  color: Colors.blue[800],
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 32),
+          
+          // Dados da Encomenda
+          Text(
+            _currentPackage.customName ?? 'Sua Encomenda',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Text(
+              _currentPackage.trackingCode,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Status Principal (Destaque)
+          if (lastEvent != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue[100]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.circle, size: 12, color: Colors.blue[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          lastEvent.status,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[900],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (lastEvent.description != lastEvent.status) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      lastEvent.description,
+                      style: TextStyle(color: Colors.blue[800], fontSize: 13),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Rodapé com Local e Data
+            Row(
+              children: [
+                const Icon(Icons.place, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    lastEvent.location,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  dateFormat.format(lastEvent.dateTime),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+              ],
+            ),
+          ] else ...[
+            const Center(
+              child: Text(
+                'Aguardando atualizações...',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
@@ -110,10 +324,18 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
       appBar: AppBar(
         title: Text(_currentPackage.customName ?? 'Detalhes'),
         actions: [
+          // BOTÃO COMPARTILHAR (NOVO)
+          IconButton(
+            icon: _isSharing 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.share),
+            tooltip: 'Compartilhar Status',
+            onPressed: (_isSharing || _isRefreshing) ? null : _sharePackage,
+          ),
           IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'Editar',
-            onPressed: _isRefreshing ? null : _editPackage,
+            onPressed: (_isSharing || _isRefreshing) ? null : _editPackage,
           ),
           IconButton(
             icon: _isRefreshing
@@ -123,7 +345,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.refresh),
-            onPressed: _isRefreshing ? null : _refreshTracking,
+            onPressed: (_isSharing || _isRefreshing) ? null : _refreshTracking,
           ),
         ],
       ),
@@ -297,7 +519,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   }
 }
 
-// --- WIDGETS DA TIMELINE ---
+// --- WIDGETS DA TIMELINE (MANTIDOS IGUAIS) ---
 
 class TimelineTile extends StatelessWidget {
   final TrackingEvent event;
