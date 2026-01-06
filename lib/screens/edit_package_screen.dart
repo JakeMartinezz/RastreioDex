@@ -1,4 +1,4 @@
-import 'dart:async'; // Import necessário para tratar TimeoutExceptions se explícitas
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/package.dart';
 import '../services/firebase_service.dart';
@@ -57,36 +57,45 @@ class _EditPackageScreenState extends State<EditPackageScreen> {
         newType = TrackingService.getPackageType(newCode);
       }
 
-      // CORREÇÃO: Criamos uma nova instância manualmente em vez de usar copyWith.
-      // O copyWith do seu modelo ignora nulos (?? this.field), o que impede 
-      // de "apagar" o nome personalizado se o usuário deixar o campo vazio.
+      // CORREÇÃO: Criamos uma nova instância manualmente para garantir que
+      // campos opcionais como 'customName' possam ser definidos como nulos se vazios.
       final updatedPackage = Package(
         id: widget.package.id, // Mantém o ID original (Crucial!)
         trackingCode: newCode,
-        customName: newName.isEmpty ? null : newName, // Agora permite nulo
+        customName: newName.isEmpty ? null : newName, // Agora permite remover o nome
         type: newType,
         events: widget.package.events, // Mantém histórico
         addedAt: widget.package.addedAt,
         lastUpdate: widget.package.lastUpdate,
         currentStatus: widget.package.currentStatus,
+        // IMPORTANTE: Preserva o estado de arquivamento e ordem
+        isArchived: widget.package.isArchived,
+        orderIndex: widget.package.orderIndex,
       );
 
-      // CORREÇÃO: Adicionado timeout para evitar carregamento infinito
+      // CORREÇÃO PRINCIPAL: Timeout curto sem lançar exceção.
+      // Se o servidor demorar mais de 2.5s, assumimos sucesso local (offline mode)
+      // e deixamos o Firebase sincronizar em background.
       await _firebaseService.updatePackage(updatedPackage).timeout(
-        const Duration(seconds: 15),
+        const Duration(milliseconds: 2500),
         onTimeout: () {
-          throw TimeoutException('O servidor demorou muito para responder.');
+          debugPrint('⏳ Timeout de rede: Assumindo salvamento local (offline mode).');
+          return; // Retorna vazio (sucesso) em vez de lançar erro
         },
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Alterações salvas com sucesso!')),
+          const SnackBar(
+            content: Text('Alterações salvas!'),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
-        // Retorna o pacote atualizado para a tela anterior
+        // Retorna o pacote atualizado para a tela anterior atualizar a lista
         Navigator.pop(context, updatedPackage);
       }
     } catch (e) {
+      debugPrint('Erro ao salvar: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

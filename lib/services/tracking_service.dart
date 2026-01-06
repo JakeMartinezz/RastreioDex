@@ -2,13 +2,12 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/tracking_event.dart';
-import '../services/preferences_service.dart'; // Importe o serviço de preferências
+import '../services/preferences_service.dart';
 
 class TrackingService {
-  // A URL continua fixa
   static const String _apiUrl = 'https://api-labs.wonca.com.br/wonca.labs.v1.LabsService/Track';
 
-  // --- OTIMIZAÇÃO: GRUPOS DE PREFIXOS ---
+  // --- GRUPOS DE PREFIXOS ---
   static const Map<String, List<String>> _prefixGroups = {
     'SEDEX': [
       'AA', 'AB', 'AC', 'AD', 'AE', 'AJ', 'AX', 'AY', 'DA', 'DF', 'DG', 'DH', 
@@ -96,15 +95,14 @@ class TrackingService {
     return _cachedPrefixMap!;
   }
 
-  // Lógica da API Wonca Labs
-  static Future<List<TrackingEvent>> trackPackage(String trackingCode, {int retryCount = 0}) async {
+  // --- LÓGICA DA API ---
+  // Agora retorna um Record com (Events + EstimatedDelivery)
+  static Future<({List<TrackingEvent> events, DateTime? estimatedDelivery})> trackPackage(String trackingCode, {int retryCount = 0}) async {
     try {
       debugPrint('🌐 Rastreando via Wonca Labs: $trackingCode (tentativa ${retryCount + 1}/3)');
 
-      // 1. Obter chave salva nas configurações
       final apiKey = await PreferencesService.getApiKey();
       
-      // Validação: Se não tiver chave, lança erro para ser tratado na UI
       if (apiKey.isEmpty) {
         throw Exception('Chave de API não configurada. Vá em Configurações para adicionar.');
       }
@@ -113,7 +111,7 @@ class TrackingService {
         Uri.parse(_apiUrl),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Apikey $apiKey', // Usa a chave dinâmica
+          'Authorization': 'Apikey $apiKey',
         },
         body: json.encode({
           'code': trackingCode,
@@ -135,6 +133,25 @@ class TrackingService {
           if (data['json'] != null) {
             final trackingData = json.decode(data['json']);
             
+            // 1. Extrair Data Prevista (dtPrevista)
+            DateTime? estimatedDate;
+            if (trackingData['dtPrevista'] != null) {
+              try {
+                // Formato esperado: "dd/MM/yyyy"
+                final parts = trackingData['dtPrevista'].toString().split('/');
+                if (parts.length == 3) {
+                  estimatedDate = DateTime(
+                    int.parse(parts[2]), // Ano
+                    int.parse(parts[1]), // Mês
+                    int.parse(parts[0]), // Dia
+                  );
+                }
+              } catch (e) {
+                debugPrint('⚠️ Erro ao ler data prevista: $e');
+              }
+            }
+
+            // 2. Extrair Eventos
             if (trackingData['eventos'] != null && trackingData['eventos'] is List) {
               final eventos = trackingData['eventos'] as List;
               debugPrint('📋 Total de eventos: ${eventos.length}');
@@ -176,10 +193,10 @@ class TrackingService {
                 );
               }).toList();
 
-              return events;
+              return (events: events, estimatedDelivery: estimatedDate);
             } else {
-              debugPrint('❌ Chave "eventos" NÃO encontrada ou inválida no tracking!');
-              return [];
+              debugPrint('❌ Chave "eventos" NÃO encontrada ou inválida!');
+              return (events: <TrackingEvent>[], estimatedDelivery: null);
             }
           } else {
             debugPrint('❌ Chave "json" NÃO encontrada na resposta!');
@@ -192,24 +209,21 @@ class TrackingService {
         debugPrint('❌ Erro HTTP: ${response.statusCode}');
       }
 
-      return [];
+      return (events: <TrackingEvent>[], estimatedDelivery: null);
     } catch (e) {
       debugPrint('❌ Erro ao rastrear: $e');
 
-      // Retry logic (apenas para erros de rede, não para erro de chave vazia)
       if (retryCount < 2 && !e.toString().contains('Chave de API')) {
         debugPrint('🔄 Tentando novamente em 2 segundos...');
         await Future.delayed(const Duration(seconds: 2));
         return trackPackage(trackingCode, retryCount: retryCount + 1);
       }
 
-      // Repassa o erro de chave vazia para que a tela mostre o SnackBar correto
       if (e.toString().contains('Chave de API')) {
         rethrow;
       }
 
-      debugPrint('❌ Falhou após 3 tentativas');
-      return [];
+      return (events: <TrackingEvent>[], estimatedDelivery: null);
     }
   }
 

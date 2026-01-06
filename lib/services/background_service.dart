@@ -1,70 +1,56 @@
-import 'package:workmanager/workmanager.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:workmanager/workmanager.dart';
 import 'firebase_service.dart';
-import 'tracking_service.dart';
 import 'notification_service.dart';
+import 'tracking_service.dart';
 
-// Nome da tarefa para referência
+// Nome da tarefa deve ser único
 const String fetchBackgroundTask = "fetchBackgroundTask";
 
-@pragma('vm:entry-point') // Obrigatório para o Dart saber que isso roda em background
+@pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     switch (task) {
       case fetchBackgroundTask:
         debugPrint("⏰ Iniciando verificação em background...");
         try {
-          // 1. Inicializar Firebase (necessário pois estamos em outra thread)
+          // Inicializa serviços necessários na isolate do background
           await Firebase.initializeApp();
-          
-          // 2. Inicializar Notificações
-          // Nota: Não precisamos dos listeners de push aqui, apenas do canal local
           await NotificationService.initialize();
 
           final firebaseService = FirebaseService();
-          
-          // 3. Buscar todas as encomendas
           final packages = await firebaseService.getAllPackages();
-          debugPrint("📦 Background: Verificando ${packages.length} encomendas");
-
-          int updatesCount = 0;
-
+          
           for (var package in packages) {
-            // Se já foi entregue, talvez pular para economizar dados/bateria
-            // if (package.currentStatus.toLowerCase().contains('entregue')) continue;
+            // Não verifica pacotes arquivados em background para economizar bateria/API
+            if (package.isArchived) continue;
 
             try {
-              // 4. Consultar API
-              final events = await TrackingService.trackPackage(package.trackingCode);
+              final result = await TrackingService.trackPackage(package.trackingCode);
               
-              if (events.isNotEmpty) {
-                // 5. Tentar atualizar no Firebase
+              if (result.events.isNotEmpty) {
                 final hasUpdates = await firebaseService.updatePackageTracking(
                   package.id, 
-                  events
+                  result.events,
+                  estimatedDelivery: result.estimatedDelivery
                 );
 
                 if (hasUpdates) {
-                  updatesCount++;
                   debugPrint("🔔 Nova atualização para: ${package.trackingCode}");
-                  
-                  // 6. Enviar Notificação Local
                   await NotificationService.showNotification(
                     'Atualização: ${package.customName ?? package.trackingCode}',
-                    events.first.description,
+                    result.events.first.description,
                   );
                 }
               }
             } catch (e) {
               debugPrint("❌ Erro ao verificar pacote ${package.trackingCode}: $e");
             }
-            
-            // Pequeno delay para não sobrecarregar a API se tiver muitos pacotes
+            // Delay de segurança entre requisições
             await Future.delayed(const Duration(seconds: 1));
           }
-
-          debugPrint("✅ Fim do background task. Atualizações: $updatesCount");
+          debugPrint("✅ Fim do background task.");
           
         } catch (e) {
           debugPrint("❌ Erro fatal no background task: $e");
@@ -74,4 +60,26 @@ void callbackDispatcher() {
     }
     return Future.value(true);
   });
+}
+
+class BackgroundService {
+  static Future<void> initialize() async {
+    await Workmanager().initialize(
+      callbackDispatcher,
+      // isInDebugMode foi removido nas versões novas, não é mais necessário aqui
+    );
+  }
+
+  static Future<void> registerPeriodicTask() async {
+    await Workmanager().registerPeriodicTask(
+      "1", // ID único da tarefa
+      fetchBackgroundTask,
+      frequency: const Duration(minutes: 15), // Frequência mínima permitida
+      constraints: Constraints(
+        networkType: NetworkType.connected, // Só roda se houver internet
+      ),
+      // CORREÇÃO: Uso do ExistingPeriodicWorkPolicy para tarefas periódicas
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.replace,
+    );
+  }
 }

@@ -7,11 +7,10 @@ class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _collection = 'packages';
 
-  // ALTERADO: Recebe parâmetro para filtrar arquivados
   Stream<List<Package>> getPackagesStream({bool showArchived = false}) {
     return _firestore
         .collection(_collection)
-        .where('isArchived', isEqualTo: showArchived) // <--- FILTRO
+        .where('isArchived', isEqualTo: showArchived)
         .orderBy('orderIndex', descending: false)
         .orderBy('addedAt', descending: true)
         .snapshots()
@@ -24,20 +23,16 @@ class FirebaseService {
         });
   }
 
-  // NOVO: Alternar status de arquivamento
   Future<void> toggleArchive(String packageId, bool archive) async {
     await _firestore.collection(_collection).doc(packageId).update({
       'isArchived': archive,
     });
   }
 
-  // NOVO: Automação para arquivar entregues há mais de 7 dias
   Future<int> autoArchiveDeliveredPackages() async {
     try {
       final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
 
-      // Busca pacotes entregues, não arquivados e atualizados há mais de 7 dias
-      // Nota: Isso pode exigir um índice composto no Firebase (verifique o console)
       final snapshot = await _firestore
           .collection(_collection)
           .where('isArchived', isEqualTo: false)
@@ -51,7 +46,6 @@ class FirebaseService {
         final data = doc.data();
         final status = (data['currentStatus'] ?? '').toString().toLowerCase();
 
-        // Verificação dupla se foi entregue
         if (status.contains('entregue')) {
           batch.update(doc.reference, {'isArchived': true});
           count++;
@@ -69,9 +63,6 @@ class FirebaseService {
     }
   }
 
-  // ... (Mantenha os outros métodos: addPackage, updatePackage, deletePackage, reorderPackages, etc.)
-
-  // Certifique-se que o addPackage usa o novo toJson()
   Future<void> addPackage(Package package) async {
     try {
       await _firestore.collection(_collection).add(package.toJson());
@@ -92,27 +83,31 @@ class FirebaseService {
     await _firestore.collection(_collection).doc(packageId).delete();
   }
 
+  // ATUALIZADO: Agora aceita estimatedDelivery opcional
   Future<bool> updatePackageTracking(
     String packageId,
-    List<TrackingEvent> newEvents,
-  ) async {
+    List<TrackingEvent> newEvents, {
+    DateTime? estimatedDelivery,
+  }) async {
     try {
       final doc = await _firestore.collection(_collection).doc(packageId).get();
       if (!doc.exists) return false;
 
       final package = Package.fromJson({...doc.data()!, 'id': doc.id});
+      
       final hasNewEvents = newEvents.length != package.events.length;
+      final hasNewDate = estimatedDelivery != package.estimatedDelivery;
 
-      if (hasNewEvents) {
-        // Se receber atualização, desarquiva automaticamente (opcional, mas bom UX)
+      // Se houver novos eventos OU a data prevista mudou/apareceu
+      if (hasNewEvents || hasNewDate) {
         final updatedPackage = package.copyWith(
-          events: newEvents,
+          events: newEvents.isNotEmpty ? newEvents : package.events,
           lastUpdate: DateTime.now(),
           currentStatus: newEvents.isNotEmpty
               ? newEvents.first.status
               : package.currentStatus,
-          isArchived:
-              false, // Traz de volta para a tela principal se tiver novidade
+          estimatedDelivery: estimatedDelivery ?? package.estimatedDelivery,
+          isArchived: false, // Traz de volta se houver novidade
         );
 
         await updatePackage(updatedPackage);
@@ -120,6 +115,7 @@ class FirebaseService {
       }
       return false;
     } catch (e) {
+      debugPrint('Erro ao atualizar tracking no firebase: $e');
       return false;
     }
   }

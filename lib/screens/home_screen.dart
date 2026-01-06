@@ -28,10 +28,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   StreamSubscription? _activeSubscription;
   bool _isActiveLoading = true;
   
-  // Preferências
   bool _hideDelivered = false;
-  // Não precisamos de uma variável de estado para _autoArchive aqui, 
-  // pois ela é usada apenas uma vez na função assíncrona.
 
   @override
   void initState() {
@@ -44,14 +41,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       });
     });
     
-    // Carrega preferências e depois inicia lógica
     _loadPreferencesAndSetup();
   }
 
   Future<void> _loadPreferencesAndSetup() async {
     await _loadPreferences();
     _setupActiveStream();
-    // Verifica se deve arquivar
     await _checkAutoArchive();
   }
 
@@ -69,7 +64,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         .getPackagesStream(showArchived: false)
         .listen((packages) {
       
-      // Filtro visual: Ocultar Entregues
       var filteredPackages = packages;
       if (_hideDelivered) {
         filteredPackages = packages.where((p) {
@@ -90,15 +84,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _checkAutoArchive() async {
-    // 1. Verifica se a configuração está ativa
     final shouldAutoArchive = await PreferencesService.getAutoArchive();
     
-    // 2. Só executa se estiver TRUE
     if (shouldAutoArchive) {
       debugPrint('🧹 Executando arquivamento automático de entregues...');
       await _firebaseService.autoArchiveDeliveredPackages();
-    } else {
-      debugPrint('🧹 Arquivamento automático desativado.');
     }
   }
 
@@ -111,7 +101,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _refreshAllPackages() async {
     try {
-      // Verifica arquivamento ao atualizar também
       await _checkAutoArchive();
 
       final packages = await _firebaseService.getAllPackages();
@@ -119,14 +108,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (package.isArchived) continue;
 
         try {
-          final events = await TrackingService.trackPackage(package.trackingCode);
-          if (events.isNotEmpty) {
-            final hasUpdates =
-                await _firebaseService.updatePackageTracking(package.id, events);
+          // CORREÇÃO: Agora recebe um Record (result)
+          final result = await TrackingService.trackPackage(package.trackingCode);
+          
+          // CORREÇÃO: Verifica result.events
+          if (result.events.isNotEmpty) {
+            // CORREÇÃO: Passa events e estimatedDelivery
+            final hasUpdates = await _firebaseService.updatePackageTracking(
+              package.id, 
+              result.events,
+              estimatedDelivery: result.estimatedDelivery
+            );
+            
             if (hasUpdates) {
               await NotificationService.showNotification(
                 'Encomenda Atualizada',
-                '${package.customName ?? package.trackingCode}: ${events.first.description}',
+                '${package.customName ?? package.trackingCode}: ${result.events.first.description}',
               );
             }
           }
@@ -279,7 +276,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 context,
                 MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
-              // Ao voltar, recarrega
               await _loadPreferencesAndSetup();
             },
           ),

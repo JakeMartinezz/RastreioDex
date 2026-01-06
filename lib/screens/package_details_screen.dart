@@ -34,7 +34,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     _currentPackage = widget.package;
   }
 
-  // Helper para o ícone (igual ao Card)
   IconData _getPackageIcon() {
     if (_currentPackage.type.contains('SEDEX')) {
       return Icons.flash_on;
@@ -48,14 +47,14 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     setState(() => _isRefreshing = true);
 
     try {
-      final events =
-          await TrackingService.trackPackage(_currentPackage.trackingCode);
+      final result = await TrackingService.trackPackage(_currentPackage.trackingCode);
 
-      if (events.isNotEmpty) {
+      if (result.events.isNotEmpty) {
         final updatedPackage = _currentPackage.copyWith(
-          events: events,
+          events: result.events,
           lastUpdate: DateTime.now(),
-          currentStatus: events.first.status,
+          currentStatus: result.events.first.status,
+          estimatedDelivery: result.estimatedDelivery,
         );
 
         await _firebaseService.updatePackage(updatedPackage);
@@ -69,8 +68,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Nenhuma atualização disponível no momento')),
+            const SnackBar(content: Text('Nenhuma atualização disponível no momento')),
           );
         }
       }
@@ -108,8 +106,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
       const SnackBar(content: Text('Código copiado')),
     );
   }
-
-  // --- LÓGICA DE COMPARTILHAMENTO ---
   
   Future<void> _sharePackage() async {
     if (_isSharing) return;
@@ -117,22 +113,25 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     setState(() => _isSharing = true);
 
     try {
-      // 1. Gera a imagem a partir do Widget customizado
       final Uint8List imageBytes = await _screenshotController.captureFromWidget(
         _buildShareImageWidget(context),
         delay: const Duration(milliseconds: 10),
-        pixelRatio: 2.0, // Alta resolução
+        pixelRatio: 2.0,
       );
 
-      // 2. Salva em arquivo temporário
       final directory = await getTemporaryDirectory();
       final imagePath = '${directory.path}/share_${_currentPackage.trackingCode}.png';
       final imageFile = File(imagePath);
       await imageFile.writeAsBytes(imageBytes);
 
-      // 3. Monta o texto de legenda
+      // --- TEXTO DE COMPARTILHAMENTO ATUALIZADO ---
       String shareText = '📦 *RastreioDex*\n';
       shareText += '${_currentPackage.customName ?? "Encomenda"}: ${_currentPackage.trackingCode}\n\n';
+
+      if (_currentPackage.estimatedDelivery != null) {
+        final dateFormated = DateFormat('dd/MM/yyyy').format(_currentPackage.estimatedDelivery!);
+        shareText += '🛍️ *Previsão de Entrega:* $dateFormated\n\n';
+      }
       
       if (_currentPackage.events.isNotEmpty) {
         final lastEvent = _currentPackage.events.first;
@@ -143,7 +142,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
         shareText += 'Aguardando atualizações...';
       }
 
-      // 4. Abre o compartilhamento nativo
       await Share.shareXFiles(
         [XFile(imagePath)],
         text: shareText,
@@ -163,7 +161,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     }
   }
 
-  // Widget visualmente bonito criado apenas para ser transformado em imagem
+  // --- WIDGET DA IMAGEM DE COMPARTILHAMENTO ATUALIZADO ---
   Widget _buildShareImageWidget(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final lastEvent = _currentPackage.events.isNotEmpty 
@@ -171,20 +169,16 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
         : null;
 
     return Container(
-      width: 350, // Largura fixa para consistência
+      width: 350,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10),
-        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Cabeçalho RastreioDex
           Row(
             children: [
               Container(
@@ -207,8 +201,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
             ],
           ),
           const Divider(height: 32),
-          
-          // Dados da Encomenda
           Text(
             _currentPackage.customName ?? 'Sua Encomenda',
             style: const TextStyle(
@@ -218,27 +210,43 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: Colors.grey[300]!),
-            ),
-            child: Text(
-              _currentPackage.trackingCode,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-                letterSpacing: 1,
-              ),
+          Text(
+            _currentPackage.trackingCode,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w500,
             ),
           ),
+          const SizedBox(height: 16),
 
-          const SizedBox(height: 24),
+          // BLOCO DE PREVISÃO NA IMAGEM
+          if (_currentPackage.estimatedDelivery != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.shopping_bag_outlined, size: 18, color: Colors.green[700]),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Previsão: ',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[800]),
+                  ),
+                  Text(
+                    DateFormat('dd/MM/yyyy').format(_currentPackage.estimatedDelivery!),
+                    style: TextStyle(color: Colors.green[800]),
+                  ),
+                ],
+              ),
+            ),
 
-          // Status Principal (Destaque)
           if (lastEvent != null) ...[
             Container(
               width: double.infinity,
@@ -251,35 +259,23 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.circle, size: 12, color: Colors.blue[700]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          lastEvent.status,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue[900],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (lastEvent.description != lastEvent.status) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      lastEvent.description,
-                      style: TextStyle(color: Colors.blue[800], fontSize: 13),
+                  Text(
+                    lastEvent.status,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[900],
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    lastEvent.description,
+                    style: TextStyle(color: Colors.blue[800], fontSize: 13),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            
-            // Rodapé com Local e Data
             Row(
               children: [
                 const Icon(Icons.place, size: 16, color: Colors.grey),
@@ -287,7 +283,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                 Expanded(
                   child: Text(
                     lastEvent.location,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ),
               ],
@@ -299,7 +295,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                 const SizedBox(width: 4),
                 Text(
                   dateFormat.format(lastEvent.dateTime),
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
                 ),
               ],
             ),
@@ -324,7 +320,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
       appBar: AppBar(
         title: Text(_currentPackage.customName ?? 'Detalhes'),
         actions: [
-          // BOTÃO COMPARTILHAR (NOVO)
           IconButton(
             icon: _isSharing 
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
@@ -353,7 +348,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // CABEÇALHO DO PACOTE
             Container(
               color: Theme.of(context)
                   .colorScheme
@@ -363,7 +357,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- HERO 1: ÍCONE ---
                   Hero(
                     tag: 'icon_${_currentPackage.id}',
                     child: Container(
@@ -381,12 +374,10 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                   ),
                   const SizedBox(width: 16),
                   
-                  // TEXTOS
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // --- HERO 2: TÍTULO/CÓDIGO ---
                         Hero(
                           tag: 'title_${_currentPackage.id}',
                           child: Material(
@@ -420,6 +411,24 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                             ),
                           ),
                         ),
+                        if (_currentPackage.estimatedDelivery != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.event_available,
+                                  size: 16, color: Colors.blue[700]),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Previsão: ${DateFormat('dd/MM/yyyy').format(_currentPackage.estimatedDelivery!)}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         if (_currentPackage.lastUpdate != null) ...[
                           const SizedBox(height: 8),
                           Row(
@@ -455,7 +464,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
               ),
             ),
 
-            // TIMELINE VISUAL
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -519,7 +527,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   }
 }
 
-// --- WIDGETS DA TIMELINE (MANTIDOS IGUAIS) ---
+// --- WIDGETS DA TIMELINE ---
 
 class TimelineTile extends StatelessWidget {
   final TrackingEvent event;
