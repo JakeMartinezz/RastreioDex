@@ -108,12 +108,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (package.isArchived) continue;
 
         try {
-          // CORREÇÃO: Agora recebe um Record (result)
           final result = await TrackingService.trackPackage(package.trackingCode);
           
-          // CORREÇÃO: Verifica result.events
           if (result.events.isNotEmpty) {
-            // CORREÇÃO: Passa events e estimatedDelivery
             final hasUpdates = await _firebaseService.updatePackageTracking(
               package.id, 
               result.events,
@@ -153,12 +150,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _toggleArchive(Package package, bool archive) async {
-    if (archive) {
-      setState(() {
-        _activePackages.removeWhere((p) => p.id == package.id);
-      });
-    }
-
+    // REMOVIDO: removeWhere manual (o Stream cuida disso)
     await _firebaseService.toggleArchive(package.id, archive);
     
     if (mounted) {
@@ -177,7 +169,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _deletePackage(Package package) async {
+  // ALTERADO: Agora retorna Future<bool> para o Dismissible saber o resultado
+  Future<bool> _deletePackage(Package package) async {
       final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -198,11 +191,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
 
     if (confirm == true) {
-      setState(() {
-        _activePackages.removeWhere((p) => p.id == package.id);
-      });
+      // REMOVIDO: removeWhere manual para evitar sumiço fantasma
       await _firebaseService.deletePackage(package.id);
+      return true;
     }
+    return false;
   }
 
   @override
@@ -339,21 +332,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 80),
         itemCount: _activePackages.length,
         onReorder: _onReorder,
-        proxyDecorator: (child, index, animation) {
-          return AnimatedBuilder(
-            animation: animation,
-            builder: (BuildContext context, Widget? child) {
-              return Material(
-                elevation: 8.0,
-                color: Colors.transparent,
-                shadowColor: Colors.black.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
-                child: child,
-              );
-            },
-            child: child,
-          );
-        },
         itemBuilder: (context, index) {
           final package = _activePackages[index];
           return Dismissible(
@@ -379,10 +357,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: const Icon(Icons.delete, color: Colors.white),
             ),
+            // ALTERADO: Agora aguarda o retorno booleano do diálogo
             confirmDismiss: (direction) async {
               if (direction == DismissDirection.endToStart) {
-                await _deletePackage(package);
-                return true;
+                return await _deletePackage(package);
               } else {
                 await _toggleArchive(package, true);
                 return true;
@@ -462,10 +440,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: const Icon(Icons.delete, color: Colors.white),
               ),
+              // ALTERADO: Agora aguarda o retorno booleano do diálogo
               confirmDismiss: (direction) async {
                 if (direction == DismissDirection.endToStart) {
-                  await _deletePackage(package);
-                  return true;
+                  return await _deletePackage(package);
                 } else {
                   await _toggleArchive(package, false);
                   return true;

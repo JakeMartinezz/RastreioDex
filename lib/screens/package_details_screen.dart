@@ -124,7 +124,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
       final imageFile = File(imagePath);
       await imageFile.writeAsBytes(imageBytes);
 
-      // --- TEXTO DE COMPARTILHAMENTO ATUALIZADO ---
       String shareText = '📦 *RastreioDex*\n';
       shareText += '${_currentPackage.customName ?? "Encomenda"}: ${_currentPackage.trackingCode}\n\n';
 
@@ -161,7 +160,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     }
   }
 
-  // --- WIDGET DA IMAGEM DE COMPARTILHAMENTO ATUALIZADO ---
   Widget _buildShareImageWidget(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final lastEvent = _currentPackage.events.isNotEmpty 
@@ -220,7 +218,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // BLOCO DE PREVISÃO NA IMAGEM
           if (_currentPackage.estimatedDelivery != null)
             Container(
               width: double.infinity,
@@ -315,6 +312,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final isDark = Theme.of(context).brightness == Brightness.dark; // CORREÇÃO: Detecta modo escuro
 
     return Scaffold(
       appBar: AppBar(
@@ -349,10 +347,9 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              color: Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest
-                  .withValues(alpha: 0.3),
+              color: isDark 
+                  ? Colors.grey[900] // CORREÇÃO: Cor de fundo adequada para modo escuro
+                  : Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(76),
               padding: const EdgeInsets.all(20),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,13 +359,15 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                        color: isDark 
+                            ? Colors.blue.withAlpha(51) // CORREÇÃO: Fundo do ícone visível no escuro
+                            : Theme.of(context).primaryColor.withAlpha(25),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
                         _getPackageIcon(),
                         size: 32,
-                        color: Theme.of(context).primaryColor,
+                        color: isDark ? Colors.blue[300] : Theme.of(context).primaryColor, // CORREÇÃO: Ícone azul claro no escuro
                       ),
                     ),
                   ),
@@ -397,9 +396,9 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .primaryColor
-                                .withValues(alpha: 0.1),
+                            color: isDark 
+                                ? Colors.blue.withAlpha(51) // CORREÇÃO: Fundo da etiqueta de tipo
+                                : Theme.of(context).primaryColor.withAlpha(25),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -407,7 +406,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Theme.of(context).primaryColor,
+                              color: isDark ? Colors.blue[200] : Theme.of(context).primaryColor, // CORREÇÃO: Texto legível no escuro
                             ),
                           ),
                         ),
@@ -416,14 +415,14 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                           Row(
                             children: [
                               Icon(Icons.event_available,
-                                  size: 16, color: Colors.blue[700]),
+                                  size: 16, color: isDark ? Colors.blue[300] : Colors.blue[700]),
                               const SizedBox(width: 6),
                               Text(
                                 'Previsão: ${DateFormat('dd/MM/yyyy').format(_currentPackage.estimatedDelivery!)}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.blue[700],
+                                  color: isDark ? Colors.blue[200] : Colors.blue[700],
                                 ),
                               ),
                             ],
@@ -434,14 +433,14 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                           Row(
                             children: [
                               Icon(Icons.update,
-                                  size: 16, color: Colors.grey[600]),
+                                  size: 16, color: isDark ? Colors.grey[400] : Colors.grey[600]),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   'Atualizado em ${dateFormat.format(_currentPackage.lastUpdate!)}',
                                   style: TextStyle(
                                     fontSize: 13,
-                                    color: Colors.grey[600],
+                                    color: isDark ? Colors.grey[400] : Colors.grey[600],
                                   ),
                                 ),
                               ),
@@ -453,7 +452,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                   ),
                   IconButton(
                     style: IconButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.surface,
+                      backgroundColor: isDark ? Colors.grey[800] : Theme.of(context).colorScheme.surface,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                     ),
@@ -527,8 +526,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   }
 }
 
-// --- WIDGETS DA TIMELINE ---
-
 class TimelineTile extends StatelessWidget {
   final TrackingEvent event;
   final bool isFirst;
@@ -585,6 +582,7 @@ class TimelineTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _getColor(context);
     final icon = _getIcon();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return IntrinsicHeight(
       child: Row(
@@ -602,10 +600,10 @@ class TimelineTile extends StatelessWidget {
                     height: 32,
                     decoration: BoxDecoration(
                       color: Theme.of(context).scaffoldBackgroundColor,
-                      border: Border.all(color: Colors.grey[300]!, width: 2),
+                      border: Border.all(color: isDark ? Colors.grey[700]! : Colors.grey[300]!, width: 2),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(icon, size: 16, color: Colors.grey[500]),
+                    child: Icon(icon, size: 16, color: isDark ? Colors.grey[400] : Colors.grey[500]),
                   ),
                 if (!isLast)
                   Expanded(
@@ -613,7 +611,7 @@ class TimelineTile extends StatelessWidget {
                       width: 2,
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.grey[200],
+                        color: isDark ? Colors.grey[800] : Colors.grey[200],
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -647,7 +645,7 @@ class TimelineTile extends StatelessWidget {
                         event.description,
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.grey[600],
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
                           height: 1.3,
                         ),
                       ),
@@ -655,13 +653,13 @@ class TimelineTile extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.place, size: 14, color: Colors.grey[500]),
+                      Icon(Icons.place, size: 14, color: isDark ? Colors.grey[400] : Colors.grey[500]),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           event.location,
                           style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600]),
+                              TextStyle(fontSize: 12, color: isDark ? Colors.grey[400] : Colors.grey[600]),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -670,13 +668,13 @@ class TimelineTile extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                            color: Colors.grey[100],
+                            color: isDark ? Colors.grey[800] : Colors.grey[100],
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey[200]!)),
+                            border: Border.all(color: isDark ? Colors.grey[700]! : Colors.grey[200]!)),
                         child: Text(
                           dateFormat.format(event.dateTime),
                           style:
-                              TextStyle(fontSize: 11, color: Colors.grey[700]),
+                              TextStyle(fontSize: 11, color: isDark ? Colors.grey[300] : Colors.grey[700]),
                         ),
                       ),
                     ],
@@ -742,7 +740,7 @@ class _PulsingIconState extends State<PulsingIcon>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: widget.color
-                      .withValues(alpha: (1 - _controller.value) * 0.3),
+                      .withAlpha(((1 - _controller.value) * 76).toInt()),
                 ),
               );
             },
@@ -755,7 +753,7 @@ class _PulsingIconState extends State<PulsingIcon>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: widget.color.withValues(alpha: 0.4),
+                  color: widget.color.withAlpha(102),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 )
