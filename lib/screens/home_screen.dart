@@ -11,6 +11,7 @@ import 'add_package_screen.dart';
 import 'package_details_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/package_card.dart';
+import '../widgets/skeleton_package_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -301,7 +302,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildActiveList() {
     if (_isActiveLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return ListView.builder(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 80),
+        itemCount: 6,
+        itemBuilder: (context, index) {
+          return const SkeletonPackageCard();
+        },
+      );
     }
 
     if (_activePackages.isEmpty) {
