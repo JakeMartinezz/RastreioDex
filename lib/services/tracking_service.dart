@@ -95,9 +95,8 @@ class TrackingService {
     return _cachedPrefixMap!;
   }
 
-  // --- LÓGICA DA API ---
-  // Agora retorna um Record com (Events + EstimatedDelivery)
-  static Future<({List<TrackingEvent> events, DateTime? estimatedDelivery})> trackPackage(String trackingCode, {int retryCount = 0}) async {
+  // Agora retorna um Record com (Events + EstimatedDelivery + IsDelivered)
+  static Future<({List<TrackingEvent> events, DateTime? estimatedDelivery, bool isDelivered})> trackPackage(String trackingCode, {int retryCount = 0}) async {
     try {
       debugPrint('🌐 Rastreando via Wonca Labs: $trackingCode (tentativa ${retryCount + 1}/3)');
 
@@ -192,11 +191,14 @@ class TrackingService {
                   dateTime: eventDate,
                 );
               }).toList();
+              
+              // 3. Checar se foi entregue
+              final isDelivered = events.any((e) => e.status.toLowerCase().contains('entregue'));
 
-              return (events: events, estimatedDelivery: estimatedDate);
+              return (events: events, estimatedDelivery: estimatedDate, isDelivered: isDelivered);
             } else {
               debugPrint('❌ Chave "eventos" NÃO encontrada ou inválida!');
-              return (events: <TrackingEvent>[], estimatedDelivery: null);
+              return (events: <TrackingEvent>[], estimatedDelivery: null, isDelivered: false);
             }
           } else {
             debugPrint('❌ Chave "json" NÃO encontrada na resposta!');
@@ -209,7 +211,7 @@ class TrackingService {
         debugPrint('❌ Erro HTTP: ${response.statusCode}');
       }
 
-      return (events: <TrackingEvent>[], estimatedDelivery: null);
+      return (events: <TrackingEvent>[], estimatedDelivery: null, isDelivered: false);
     } catch (e) {
       debugPrint('❌ Erro ao rastrear: $e');
 
@@ -223,7 +225,7 @@ class TrackingService {
         rethrow;
       }
 
-      return (events: <TrackingEvent>[], estimatedDelivery: null);
+      return (events: <TrackingEvent>[], estimatedDelivery: null, isDelivered: false);
     }
   }
 

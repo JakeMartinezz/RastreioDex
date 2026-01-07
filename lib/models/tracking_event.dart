@@ -11,23 +11,23 @@ class TrackingEvent {
     required this.dateTime,
   });
 
-  factory TrackingEvent.fromJson(Map<String, dynamic> json) {
+  factory TrackingEvent.fromMap(Map<String, dynamic> map) {
     return TrackingEvent(
-      status: json['status'] ?? '',
-      description: json['description'] ?? '',
-      location: json['location'] ?? '',
-      dateTime: json['dateTime'] != null
-          ? DateTime.parse(json['dateTime'])
+      status: map['status'] ?? '',
+      description: map['description'] ?? '',
+      location: map['location'] ?? '',
+      dateTime: map['dateTime'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['dateTime'])
           : DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toMap() {
     return {
       'status': status,
       'description': description,
       'location': location,
-      'dateTime': dateTime.toIso8601String(),
+      'dateTime': dateTime.millisecondsSinceEpoch,
     };
   }
 }

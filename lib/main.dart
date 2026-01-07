@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:adaptive_theme/adaptive_theme.dart';
 import 'package:workmanager/workmanager.dart';
 import 'screens/home_screen.dart';
@@ -9,12 +8,10 @@ import 'services/background_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializa Firebase
-  await Firebase.initializeApp();
-
   // Inicializa Workmanager
   // Nota: isInDebugMode foi removido na nova versão
   await Workmanager().initialize(callbackDispatcher);
+
 
   // Registra a tarefa periódica
   await Workmanager().registerPeriodicTask(

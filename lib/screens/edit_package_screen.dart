@@ -1,7 +1,6 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/package.dart';
-import '../services/firebase_service.dart';
+import '../services/database_service.dart';
 import '../services/tracking_service.dart';
 
 class EditPackageScreen extends StatefulWidget {
@@ -17,7 +16,6 @@ class _EditPackageScreenState extends State<EditPackageScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _trackingCodeController;
   late TextEditingController _customNameController;
-  final FirebaseService _firebaseService = FirebaseService();
   bool _isLoading = false;
 
   @override
@@ -35,7 +33,6 @@ class _EditPackageScreenState extends State<EditPackageScreen> {
   }
 
   Future<void> _saveChanges() async {
-    // Fecha o teclado para evitar bugs visuais
     FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) return;
@@ -43,46 +40,27 @@ class _EditPackageScreenState extends State<EditPackageScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Verificação de Segurança do ID
-      if (widget.package.id.isEmpty) {
-        throw Exception('Erro interno: ID do pacote não encontrado.');
-      }
-
       final newCode = _trackingCodeController.text.trim().toUpperCase();
       final newName = _customNameController.text.trim();
       
-      // Se o código mudou, recalculamos o tipo (SEDEX, PAC, etc)
       String newType = widget.package.type;
       if (newCode != widget.package.trackingCode) {
         newType = TrackingService.getPackageType(newCode);
       }
 
-      // CORREÇÃO: Criamos uma nova instância manualmente para garantir que
-      // campos opcionais como 'customName' possam ser definidos como nulos se vazios.
       final updatedPackage = Package(
-        id: widget.package.id, // Mantém o ID original (Crucial!)
         trackingCode: newCode,
-        customName: newName.isEmpty ? null : newName, // Agora permite remover o nome
+        customName: newName.isEmpty ? null : newName,
         type: newType,
-        events: widget.package.events, // Mantém histórico
-        addedAt: widget.package.addedAt,
+        // Preserve existing data
+        events: widget.package.events, 
         lastUpdate: widget.package.lastUpdate,
         currentStatus: widget.package.currentStatus,
-        // IMPORTANTE: Preserva o estado de arquivamento e ordem
-        isArchived: widget.package.isArchived,
-        orderIndex: widget.package.orderIndex,
+        isDelivered: widget.package.isDelivered,
+        estimatedDelivery: widget.package.estimatedDelivery,
       );
 
-      // CORREÇÃO PRINCIPAL: Timeout curto sem lançar exceção.
-      // Se o servidor demorar mais de 2.5s, assumimos sucesso local (offline mode)
-      // e deixamos o Firebase sincronizar em background.
-      await _firebaseService.updatePackage(updatedPackage).timeout(
-        const Duration(milliseconds: 2500),
-        onTimeout: () {
-          debugPrint('⏳ Timeout de rede: Assumindo salvamento local (offline mode).');
-          return; // Retorna vazio (sucesso) em vez de lançar erro
-        },
-      );
+      await DatabaseService.instance.createOrUpdatePackage(updatedPackage);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -91,7 +69,7 @@ class _EditPackageScreenState extends State<EditPackageScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        // Retorna o pacote atualizado para a tela anterior atualizar a lista
+        // Return the updated package to the details screen
         Navigator.pop(context, updatedPackage);
       }
     } catch (e) {

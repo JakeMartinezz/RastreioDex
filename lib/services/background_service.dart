@@ -1,8 +1,8 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:home_widget/home_widget.dart';
-import 'firebase_service.dart';
+import 'package:rastreiodex/models/package.dart';
+import 'database_service.dart';
 import 'notification_service.dart';
 import 'tracking_service.dart';
 
@@ -17,28 +17,37 @@ void callbackDispatcher() {
         debugPrint("⏰ Iniciando verificação em background...");
         try {
           // Inicializa serviços necessários na isolate do background
-          await Firebase.initializeApp();
           await NotificationService.initialize();
 
-          final firebaseService = FirebaseService();
-          final packages = await firebaseService.getAllPackages();
+          final packages = await DatabaseService.instance.getAllPackages();
           
           for (var package in packages) {
-            // Não verifica pacotes arquivados em background
-            if (package.isArchived) continue;
+            // Não verifica pacotes já entregues
+            if (package.isDelivered) continue;
 
             try {
               final result = await TrackingService.trackPackage(package.trackingCode);
               
               if (result.events.isNotEmpty) {
-                final hasUpdates = await firebaseService.updatePackageTracking(
-                  package.id, 
-                  result.events,
-                  estimatedDelivery: result.estimatedDelivery
-                );
+                // Compara o evento mais recente para ver se houve atualização
+                final bool hasUpdates = package.events.isEmpty || 
+                                        (result.events.first.description != package.events.first.description);
 
                 if (hasUpdates) {
-                  final String currentTitle = package.customName ?? package.trackingCode;
+                  final updatedPackage = Package(
+                    trackingCode: package.trackingCode,
+                    customName: package.customName,
+                    type: package.type,
+                    events: result.events,
+                    lastUpdate: DateTime.now(),
+                    currentStatus: result.events.first.status,
+                    isDelivered: result.isDelivered,
+                    estimatedDelivery: result.estimatedDelivery,
+                  );
+
+                  await DatabaseService.instance.createOrUpdatePackage(updatedPackage);
+
+                  final String currentTitle = updatedPackage.customName ?? updatedPackage.trackingCode;
                   
                   // --- ATUALIZAÇÃO DO WIDGET (Sincroniza apenas se for o item fixado) ---
                   final String? pinnedTitle = await HomeWidget.getWidgetData<String>('pkg_title');

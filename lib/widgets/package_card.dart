@@ -114,12 +114,12 @@ class PackageCard extends StatelessWidget {
                 children: [
                   // --- HERO 1: ÍCONE ---
                   Hero(
-                    tag: 'icon_${package.id}', // Tag única
+                    tag: 'icon_${package.trackingCode}', // Tag única
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.blue.withValues(alpha: 0.2)
+                            ? Colors.blue.withAlpha((255 * 0.2).round())
                             : Theme.of(context).primaryColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -138,7 +138,7 @@ class PackageCard extends StatelessWidget {
                       children: [
                         // --- HERO 2: TÍTULO/CÓDIGO ---
                         Hero(
-                          tag: 'title_${package.id}', // Tag única
+                          tag: 'title_${package.trackingCode}', // Tag única
                           child: Material(
                             type: MaterialType.transparency, // Evita bug visual
                             child: Text(

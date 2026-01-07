@@ -1,17 +1,14 @@
 plugins {
     id("com.android.application")
-    // START: FlutterFire Configuration
-    id("com.google.gms.google-services")
-    // END: FlutterFire Configuration
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // O plugin do Flutter deve vir após o Android e Kotlin
     id("dev.flutter.flutter-gradle-plugin")
+    // REMOVIDO: id("com.google.gms.google-services")
 }
 
 android {
     namespace = "com.agiomartinez.rastreiodex"
     compileSdk = flutter.compileSdkVersion
-    // MODIFICADO: A versão do NDK foi fixada para a versão exigida pelos plugins.
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -25,15 +22,10 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // TODO: Especifique seu próprio ID único se necessário
         applicationId = "com.agiomartinez.rastreiodex"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         
-        // --- ALTERADO AQUI ---
-        minSdk = 23 
-        // ---------------------
-
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -41,8 +33,7 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Assinando com a chave de debug por enquanto para testes
             signingConfig = signingConfigs.getByName("debug")
         }
     }

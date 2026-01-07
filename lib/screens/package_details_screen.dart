@@ -5,10 +5,10 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:home_widget/home_widget.dart'; // NOVO IMPORT
+import 'package:home_widget/home_widget.dart';
 import '../models/package.dart';
 import '../models/tracking_event.dart';
-import '../services/firebase_service.dart';
+import '../services/database_service.dart';
 import '../services/tracking_service.dart';
 import 'edit_package_screen.dart';
 
@@ -22,7 +22,6 @@ class PackageDetailsScreen extends StatefulWidget {
 }
 
 class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
   final ScreenshotController _screenshotController = ScreenshotController();
 
   bool _isRefreshing = false;
@@ -44,12 +43,10 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     return Icons.inventory_2;
   }
 
-  // --- NOVA FUNÇÃO: FIXAR NO WIDGET ---
   Future<void> _pinToWidget() async {
     final title = _currentPackage.customName ?? _currentPackage.trackingCode;
 
     try {
-      // Salva os dados desta encomenda específica como a principal do Widget
       await HomeWidget.saveWidgetData<String>('pkg_title', title);
       await HomeWidget.saveWidgetData<String>(
         'pkg_code',
@@ -66,7 +63,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
             : 'Aguardando rastreamento',
       );
 
-      // Solicita ao Android a atualização do Widget nativo
       await HomeWidget.updateWidget(
         name: 'TrackingWidgetProvider',
         androidName: 'TrackingWidgetProvider',
@@ -95,53 +91,80 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
         _currentPackage.trackingCode,
       );
 
+      if (!mounted) return;
+
       if (result.events.isNotEmpty) {
-        final updatedPackage = _currentPackage.copyWith(
+        // Manually create a new package since copyWith was removed
+        final updatedPackage = Package(
+          trackingCode: _currentPackage.trackingCode,
+          customName: _currentPackage.customName,
+          type: _currentPackage.type,
           events: result.events,
           lastUpdate: DateTime.now(),
           currentStatus: result.events.first.status,
+          isDelivered: result.isDelivered,
           estimatedDelivery: result.estimatedDelivery,
         );
 
-        await _firebaseService.updatePackage(updatedPackage);
+        await DatabaseService.instance.createOrUpdatePackage(updatedPackage);
 
-        if (mounted) {
-          setState(() => _currentPackage = updatedPackage);
+        if (!mounted) return;
+        
+        setState(() => _currentPackage = updatedPackage);
 
-          HapticFeedback.lightImpact();
+        HapticFeedback.lightImpact();
 
-          // Opcional: Atualizar widget automaticamente se este for o item fixado
-          final String? pinnedTitle = await HomeWidget.getWidgetData<String>(
-            'pkg_title',
-          );
-          if (pinnedTitle ==
-              (_currentPackage.customName ?? _currentPackage.trackingCode)) {
-            await _pinToWidget();
-          }
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Rastreamento atualizado')),
-          );
+        final String? pinnedTitle = await HomeWidget.getWidgetData<String>('pkg_title');
+        if (pinnedTitle == (_currentPackage.customName ?? _currentPackage.trackingCode)) {
+          await _pinToWidget();
         }
+        
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rastreamento atualizado')),
+        );
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Nenhuma atualização disponível no momento'),
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nenhuma atualização disponível no momento'),
+          ),
+        );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro ao atualizar: $e')));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao atualizar: $e')));
     } finally {
       if (mounted) {
         setState(() => _isRefreshing = false);
       }
+    }
+  }
+  
+  Future<void> _deletePackage() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir Encomenda'),
+        content: Text('Deseja remover permanentemente "${_currentPackage.customName ?? _currentPackage.trackingCode}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Excluir', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await DatabaseService.instance.deletePackage(_currentPackage.trackingCode);
+      if (!mounted) return;
+      // Pop screen to return to home, which will be refreshed
+      Navigator.of(context).pop();
     }
   }
 
@@ -163,9 +186,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   void _copyTrackingCode() {
     HapticFeedback.selectionClick();
     Clipboard.setData(ClipboardData(text: _currentPackage.trackingCode));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Código copiado')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado')));
   }
 
   Future<void> _sharePackage() async {
@@ -174,27 +195,22 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     setState(() => _isSharing = true);
 
     try {
-      final Uint8List imageBytes = await _screenshotController
-          .captureFromWidget(
-            _buildShareImageWidget(context),
-            delay: const Duration(milliseconds: 10),
-            pixelRatio: 2.0,
-          );
+      final Uint8List imageBytes = await _screenshotController.captureFromWidget(
+        _buildShareImageWidget(context),
+        delay: const Duration(milliseconds: 10),
+        pixelRatio: 2.0,
+      );
 
       final directory = await getTemporaryDirectory();
-      final imagePath =
-          '${directory.path}/share_${_currentPackage.trackingCode}.png';
+      final imagePath = '${directory.path}/share_${_currentPackage.trackingCode}.png';
       final imageFile = File(imagePath);
       await imageFile.writeAsBytes(imageBytes);
 
       String shareText = '📦 *RastreioDex*\n';
-      shareText +=
-          '${_currentPackage.customName ?? "Encomenda"}: ${_currentPackage.trackingCode}\n\n';
+      shareText += '${_currentPackage.customName ?? "Encomenda"}: ${_currentPackage.trackingCode}\n\n';
 
       if (_currentPackage.estimatedDelivery != null) {
-        final dateFormated = DateFormat(
-          'dd/MM/yyyy',
-        ).format(_currentPackage.estimatedDelivery!);
+        final dateFormated = DateFormat('dd/MM/yyyy').format(_currentPackage.estimatedDelivery!);
         shareText += '🛍️ *Previsão de Entrega:* $dateFormated\n\n';
       }
 
@@ -202,8 +218,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
         final lastEvent = _currentPackage.events.first;
         shareText += '📍 *${lastEvent.status}*\n';
         shareText += '${lastEvent.description}\n';
-        shareText +=
-            '${lastEvent.location} - ${DateFormat('dd/MM HH:mm').format(lastEvent.dateTime)}';
+        shareText += '${lastEvent.location} - ${DateFormat('dd/MM HH:mm').format(lastEvent.dateTime)}';
       } else {
         shareText += 'Aguardando atualizações...';
       }
@@ -227,9 +242,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
 
   Widget _buildShareImageWidget(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-    final lastEvent = _currentPackage.events.isNotEmpty
-        ? _currentPackage.events.first
-        : null;
+    final lastEvent = _currentPackage.events.isNotEmpty ? _currentPackage.events.first : null;
 
     return Container(
       width: 350,
@@ -396,7 +409,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
       appBar: AppBar(
         title: Text(_currentPackage.customName ?? 'Detalhes'),
         actions: [
-          // NOVO: ÍCONE PARA FIXAR NO WIDGET
           IconButton(
             icon: const Icon(Icons.push_pin_outlined),
             tooltip: 'Fixar na Tela Inicial',
@@ -404,11 +416,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
           ),
           IconButton(
             icon: _isSharing
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.share),
             tooltip: 'Compartilhar Status',
             onPressed: (_isSharing || _isRefreshing) ? null : _sharePackage,
@@ -419,12 +427,13 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
             onPressed: (_isSharing || _isRefreshing) ? null : _editPackage,
           ),
           IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Excluir',
+            onPressed: (_isSharing || _isRefreshing) ? null : _deletePackage,
+          ),
+          IconButton(
             icon: _isRefreshing
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.refresh),
             tooltip: 'Atualizar agora',
             onPressed: (_isSharing || _isRefreshing) ? null : _refreshTracking,
@@ -436,42 +445,33 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              color: isDark
-                  ? Colors.grey[900]
-                  : Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest.withAlpha(76),
+              color: isDark ? Colors.grey[900] : Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(76),
               padding: const EdgeInsets.all(20),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Hero(
-                    tag: 'icon_${_currentPackage.id}',
+                    tag: 'icon_${_currentPackage.trackingCode}',
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.blue.withAlpha(51)
-                            : Theme.of(context).primaryColor.withAlpha(25),
+                        color: isDark ? Colors.blue.withAlpha(51) : Theme.of(context).primaryColor.withAlpha(25),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
                         _getPackageIcon(),
                         size: 32,
-                        color: isDark
-                            ? Colors.blue[300]
-                            : Theme.of(context).primaryColor,
+                        color: isDark ? Colors.blue[300] : Theme.of(context).primaryColor,
                       ),
                     ),
                   ),
                   const SizedBox(width: 16),
-
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Hero(
-                          tag: 'title_${_currentPackage.id}',
+                          tag: 'title_${_currentPackage.trackingCode}',
                           child: Material(
                             type: MaterialType.transparency,
                             child: Text(
@@ -486,14 +486,9 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                         ),
                         const SizedBox(height: 4),
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.blue.withAlpha(51)
-                                : Theme.of(context).primaryColor.withAlpha(25),
+                            color: isDark ? Colors.blue.withAlpha(51) : Theme.of(context).primaryColor.withAlpha(25),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -501,9 +496,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: isDark
-                                  ? Colors.blue[200]
-                                  : Theme.of(context).primaryColor,
+                              color: isDark ? Colors.blue[200] : Theme.of(context).primaryColor,
                             ),
                           ),
                         ),
@@ -514,9 +507,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                               Icon(
                                 Icons.event_available,
                                 size: 16,
-                                color: isDark
-                                    ? Colors.blue[300]
-                                    : Colors.blue[700],
+                                color: isDark ? Colors.blue[300] : Colors.blue[700],
                               ),
                               const SizedBox(width: 6),
                               Text(
@@ -524,9 +515,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: isDark
-                                      ? Colors.blue[200]
-                                      : Colors.blue[700],
+                                  color: isDark ? Colors.blue[200] : Colors.blue[700],
                                 ),
                               ),
                             ],
@@ -539,9 +528,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                               Icon(
                                 Icons.update,
                                 size: 16,
-                                color: isDark
-                                    ? Colors.grey[400]
-                                    : Colors.grey[600],
+                                color: isDark ? Colors.grey[400] : Colors.grey[600],
                               ),
                               const SizedBox(width: 6),
                               Expanded(
@@ -549,9 +536,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                                   'Atualizado em ${dateFormat.format(_currentPackage.lastUpdate!)}',
                                   style: TextStyle(
                                     fontSize: 13,
-                                    color: isDark
-                                        ? Colors.grey[400]
-                                        : Colors.grey[600],
+                                    color: isDark ? Colors.grey[400] : Colors.grey[600],
                                   ),
                                 ),
                               ),
@@ -563,12 +548,8 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                   ),
                   IconButton(
                     style: IconButton.styleFrom(
-                      backgroundColor: isDark
-                          ? Colors.grey[800]
-                          : Theme.of(context).colorScheme.surface,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      backgroundColor: isDark ? Colors.grey[800] : Theme.of(context).colorScheme.surface,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     icon: const Icon(Icons.copy_all),
                     onPressed: _copyTrackingCode,
@@ -576,7 +557,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                 ],
               ),
             ),
-
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -601,8 +581,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                       itemBuilder: (context, index) {
                         final event = _currentPackage.events[index];
                         final isFirst = index == 0;
-                        final isLast =
-                            index == _currentPackage.events.length - 1;
+                        final isLast = index == _currentPackage.events.length - 1;
 
                         return TimelineTile(
                           event: event,
@@ -640,6 +619,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   }
 }
 
+// ... (Rest of the file with TimelineTile and PulsingIcon remains the same)
 class TimelineTile extends StatelessWidget {
   final TrackingEvent event;
   final bool isFirst;

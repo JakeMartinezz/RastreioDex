@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/package.dart';
-import '../services/firebase_service.dart';
+import '../services/database_service.dart';
 import '../services/tracking_service.dart';
 import '../services/preferences_service.dart';
 import 'package_details_screen.dart';
@@ -17,7 +17,6 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
   final _formKey = GlobalKey<FormState>();
   final _trackingCodeController = TextEditingController();
   final _customNameController = TextEditingController();
-  final FirebaseService _firebaseService = FirebaseService();
   bool _isLoading = false;
   String _loadingMessage = '';
 
@@ -42,7 +41,8 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
       if (!TrackingService.isValidTrackingCode(text)) return;
       if (_trackingCodeController.text.isNotEmpty) return;
 
-      final packages = await _firebaseService.getAllPackages();
+      // Use DatabaseService to check for duplicates
+      final packages = await DatabaseService.instance.getAllPackages();
       final isDuplicate = packages.any((p) => p.trackingCode == text);
 
       if (isDuplicate) return;
@@ -90,32 +90,31 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
 
       setState(() => _loadingMessage = 'Buscando informações...\nPode levar alguns segundos');
 
-      // CORREÇÃO: Acessando o Record retornado pela API
       final result = await TrackingService.trackPackage(trackingCode);
       
       final packageType = TrackingService.getPackageType(trackingCode);
 
       final package = Package(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
         trackingCode: trackingCode,
         customName: customName.isEmpty ? null : customName,
         type: packageType,
-        events: result.events, // Acessa a lista de eventos do Record
-        addedAt: DateTime.now(),
+        events: result.events,
         lastUpdate: result.events.isNotEmpty ? DateTime.now() : null,
-        estimatedDelivery: result.estimatedDelivery, // Passa a nova data prevista
+        estimatedDelivery: result.estimatedDelivery,
         currentStatus: result.events.isNotEmpty 
             ? result.events.first.status 
             : 'Aguardando rastreamento',
+        isDelivered: result.isDelivered,
       );
 
-      _firebaseService.addPackage(package).catchError((e) {
-        debugPrint('⚠️ Erro ao salvar no Firebase: $e');
-      });
+      await DatabaseService.instance.createOrUpdatePackage(package);
 
       if (mounted) {
         HapticFeedback.mediumImpact();
-        Navigator.of(context).pop();
+        // Pop the add screen, the home screen will refresh itself
+        Navigator.of(context).pop(); 
+        
+        // Then push the details screen for the newly added package
         Navigator.push(
           context,
           MaterialPageRoute(
