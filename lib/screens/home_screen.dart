@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:adaptive_theme/adaptive_theme.dart';
+import 'package:home_widget/home_widget.dart';
 import '../models/package.dart';
 import '../services/database_service.dart';
 import '../services/tracking_service.dart';
 import '../services/notification_service.dart';
 import '../services/preferences_service.dart';
+import '../services/widget_service.dart';
 import 'add_package_screen.dart';
 import 'package_details_screen.dart';
 import 'settings_screen.dart';
@@ -32,6 +34,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     NotificationService.initialize();
+
+    // Verificação de inicialização pelo widget
+    HomeWidget.initiallyLaunchedFromHomeWidget().then(_handleWidgetLaunch);
+
+    // Escutar cliques se o app já estiver aberto (Background)
+    HomeWidget.widgetClicked.listen(_handleWidgetLaunch);
+
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) return;
@@ -52,6 +61,84 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (mounted) setState(() => _isLoading = true);
     await _updateLists();
     if (mounted) setState(() => _isLoading = false);
+  }
+
+  void _handleWidgetLaunch(Uri? uri) {
+    if (uri != null && uri.toString().contains("widget_click")) {
+      debugPrint("Link do widget detectado! Abrindo seleção...");
+
+      // Feedback visual para saber que funcionou
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Carregando seleção do widget...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          _showWidgetSelectionDialog();
+        }
+      });
+    }
+  }
+
+  Future<void> _showWidgetSelectionDialog() async {
+    final active = _activePackages;
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Selecione para o Widget',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            if (active.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(32.0),
+                child: Text('Nenhuma encomenda ativa encontrada.'),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: active.length,
+                  itemBuilder: (context, index) {
+                    final pkg = active[index];
+                    return ListTile(
+                      leading: Icon(_getPackageIcon(pkg.type)),
+                      title: Text(pkg.customName ?? pkg.trackingCode),
+                      subtitle: Text(pkg.currentStatus),
+                      onTap: () {
+                        WidgetService.pinPackage(pkg, context);
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+    );
+  }
+
+  IconData _getPackageIcon(String type) {
+    if (type.contains('SEDEX')) return Icons.flash_on;
+    if (type.contains('PAC')) return Icons.local_shipping;
+    return Icons.inventory_2;
   }
 
   Future<void> _updateLists() async {

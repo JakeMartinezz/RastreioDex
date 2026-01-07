@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:home_widget/home_widget.dart';
 import '../models/package.dart';
 import '../models/tracking_event.dart';
 import '../services/database_service.dart';
@@ -45,46 +44,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     return Icons.inventory_2;
   }
 
-  Future<void> _pinToWidget() async {
-    final title = _currentPackage.customName ?? _currentPackage.trackingCode;
-
-    try {
-      await HomeWidget.saveWidgetData<String>('pkg_title', title);
-      await HomeWidget.saveWidgetData<String>(
-        'pkg_code',
-        _currentPackage.trackingCode,
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'pkg_status',
-        _currentPackage.currentStatus,
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'pkg_desc',
-        _currentPackage.events.isNotEmpty
-            ? _currentPackage.events.first.description
-            : 'Aguardando rastreamento',
-      );
-
-      await HomeWidget.updateWidget(
-        name: 'TrackingWidgetProvider',
-        androidName: 'TrackingWidgetProvider',
-      );
-
-      if (mounted) {
-        HapticFeedback.mediumImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('"$title" fixado na tela inicial!'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('Erro ao fixar no widget: $e');
-    }
-  }
-
   Future<void> _refreshTracking() async {
     setState(() => _isRefreshing = true);
 
@@ -116,22 +75,19 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
 
         HapticFeedback.lightImpact();
 
-        final String? pinnedTitle = await HomeWidget.getWidgetData<String>('pkg_title');
-        if (pinnedTitle == (_currentPackage.customName ?? _currentPackage.trackingCode)) {
-          await _pinToWidget();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rastreamento atualizado')),
+          );
         }
-        
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rastreamento atualizado')),
-        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Nenhuma atualização disponível no momento'),
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Nenhuma atualização disponível no momento'),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -435,11 +391,6 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
         title: Text(_currentPackage.customName ?? 'Detalhes'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.push_pin_outlined),
-            tooltip: 'Fixar na Tela Inicial',
-            onPressed: (_isSharing || _isRefreshing) ? null : _pinToWidget,
-          ),
-          IconButton(
             icon: _isSharing
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.share),
@@ -456,16 +407,12 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
             tooltip: 'Excluir',
             onPressed: (_isSharing || _isRefreshing) ? null : _deletePackage,
           ),
-          IconButton(
-            icon: _isRefreshing
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.refresh),
-            tooltip: 'Atualizar agora',
-            onPressed: (_isSharing || _isRefreshing) ? null : _refreshTracking,
-          ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: RefreshIndicator(
+        onRefresh: _refreshTracking,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -621,6 +568,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

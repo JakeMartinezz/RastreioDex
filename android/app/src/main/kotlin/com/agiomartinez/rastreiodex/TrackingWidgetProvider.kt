@@ -7,7 +7,10 @@ import android.graphics.Color
 import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetProvider
-import com.agiomartinez.rastreiodex.R 
+import es.antonborri.home_widget.HomeWidgetLaunchIntent
+import com.agiomartinez.rastreiodex.R
+import android.app.PendingIntent
+import android.net.Uri 
 
 class TrackingWidgetProvider : HomeWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray, widgetData: SharedPreferences) {
@@ -50,6 +53,15 @@ class TrackingWidgetProvider : HomeWidgetProvider() {
                         setImageViewResource(R.id.widget_icon, android.R.drawable.ic_menu_send)
                     }
                 }
+
+                // Lógica de Clique: Usa HomeWidgetLaunchIntent para integração correta com Flutter
+                val pendingIntent = HomeWidgetLaunchIntent.getActivity(
+                    context,
+                    MainActivity::class.java,
+                    Uri.parse("rastreiodex://widget_click")
+                )
+
+                setOnClickPendingIntent(R.id.widget_container, pendingIntent)
             }
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
