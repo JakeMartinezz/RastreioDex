@@ -1,43 +1,45 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
-  static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
   static Future<void> initialize() async {
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
+    // 1. Configurações para Android
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    // 2. Configurações para iOS
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
     );
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings();
     const initSettings = InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
     );
 
-    await _localNotifications.initialize(initSettings);
+    // 3. Inicializar plugin
+    await _localNotifications.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (details) {
+        // Lógica opcional ao clicar na notificação
+      },
+    );
 
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      _showLocalNotification(
-        message.notification?.title ?? 'Atualização de Encomenda',
-        message.notification?.body ?? 'Sua encomenda foi atualizada',
-      );
-    });
-
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    // 4. Solicitar permissão no Android 13+ (Obrigatório)
+    if (Platform.isAndroid) {
+      final androidImplementation = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+              
+      await androidImplementation?.requestNotificationsPermission();
+    }
   }
 
-  static Future<String?> getToken() async {
-    return await _messaging.getToken();
-  }
-
-  static Future<void> _showLocalNotification(
-      String title, String body) async {
+  static Future<void> showNotification(String title, String body) async {
     const androidDetails = AndroidNotificationDetails(
       'tracking_updates',
       'Atualizações de Rastreio',
@@ -54,19 +56,10 @@ class NotificationService {
     );
 
     await _localNotifications.show(
-      DateTime.now().millisecond,
+      DateTime.now().millisecond, // ID único
       title,
       body,
       details,
     );
   }
-
-  static Future<void> showNotification(String title, String body) async {
-    await _showLocalNotification(title, body);
-  }
-}
-
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Processar mensagem em background
 }

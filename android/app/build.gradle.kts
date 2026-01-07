@@ -1,9 +1,7 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // O plugin do Flutter deve vir após o Android e Kotlin
     id("dev.flutter.flutter-gradle-plugin")
-    // REMOVIDO: id("com.google.gms.google-services")
 }
 
 android {
@@ -26,7 +24,8 @@ android {
         applicationId = "com.agiomartinez.rastreiodex"
         
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        // ALTERADO: Definido explicitamente para garantir suporte a notificações (Android 13+)
+        targetSdk = 34 
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

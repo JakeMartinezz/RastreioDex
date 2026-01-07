@@ -15,7 +15,6 @@ dependencies:
   http: ^1.4.0
   sqflite: ^2.3.0
   path: ^1.8.3
-  firebase_messaging: ^16.1.0
   intl: ^0.20.2
   adaptive_theme: ^3.6.0
   flutter_local_notifications: ^19.5.0
@@ -50,3 +49,4 @@ flutter_launcher_icons:
   image_path: "assets/logo.png"
   adaptive_icon_background: "#ffffff"
   adaptive_icon_foreground: "assets/logo.png"
+
