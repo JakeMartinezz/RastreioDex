@@ -142,4 +142,30 @@ class DatabaseService {
     }
     await batch.commit(noResult: true);
   }
+
+  // EXPORTAR: Retorna a lista de mapas (JSON friendly)
+  Future<List<Map<String, dynamic>>> exportAllData() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('packages');
+    return maps;
+  }
+
+  // IMPORTAR: Limpa o banco e insere os novos dados
+  Future<void> importData(List<dynamic> dataList) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // Limpar banco atual antes de restaurar
+      await txn.delete('packages');
+
+      for (var item in dataList) {
+        if (item is Map<String, dynamic>) {
+          await txn.insert(
+            'packages',
+            item,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+    });
+  }
 }
