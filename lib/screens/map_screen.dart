@@ -136,6 +136,7 @@ class _MapScreenState extends State<MapScreen> {
                           TileLayer(
                             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                             userAgentPackageName: 'com.agiomartinez.rastreiodex',
+                            retinaMode: true,
                           ),
                           PolylineLayer(
                             polylines: [
