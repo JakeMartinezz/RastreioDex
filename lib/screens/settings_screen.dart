@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/preferences_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -73,6 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             value: _smartPaste,
             onChanged: (val) {
+              HapticFeedback.lightImpact();
               setState(() => _smartPaste = val);
               PreferencesService.saveSmartPaste(val);
             },
@@ -87,6 +89,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: const Text('Apenas esconde da lista principal'),
             value: _hideDelivered,
             onChanged: (val) {
+              HapticFeedback.lightImpact();
               setState(() {
                 _hideDelivered = val;
                 if (val) {
@@ -104,6 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: const Text('Move automaticamente para a aba Arquivados'),
             value: _autoArchive,
             onChanged: (val) {
+              HapticFeedback.lightImpact();
               setState(() {
                 _autoArchive = val;
                 if (val) {
@@ -182,9 +186,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) {
         // CORRIGIDO: value -> groupValue
         return RadioGroup<String>(
-          groupValue: _updateFrequency, 
+          groupValue: _updateFrequency,
           onChanged: (val) {
             if (val != null) {
+              HapticFeedback.lightImpact();
               setState(() => _updateFrequency = val);
               PreferencesService.saveUpdateFrequency(val);
               Navigator.pop(context);

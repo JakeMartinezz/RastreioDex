@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:adaptive_theme/adaptive_theme.dart';
 import '../models/package.dart';
 import '../services/firebase_service.dart';
@@ -138,6 +139,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _onReorder(int oldIndex, int newIndex) {
+    HapticFeedback.lightImpact();
     setState(() {
       if (newIndex > oldIndex) {
         newIndex -= 1;
@@ -150,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _toggleArchive(Package package, bool archive) async {
-    // REMOVIDO: removeWhere manual (o Stream cuida disso)
+    await HapticFeedback.mediumImpact();
     await _firebaseService.toggleArchive(package.id, archive);
     
     if (mounted) {
@@ -171,6 +173,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // ALTERADO: Agora retorna Future<bool> para o Dismissible saber o resultado
   Future<bool> _deletePackage(Package package) async {
+      HapticFeedback.selectionClick();
+
       final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -191,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
 
     if (confirm == true) {
-      // REMOVIDO: removeWhere manual para evitar sumiço fantasma
+      await HapticFeedback.heavyImpact();
       await _firebaseService.deletePackage(package.id);
       return true;
     }

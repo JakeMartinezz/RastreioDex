@@ -73,6 +73,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
       );
 
       if (mounted) {
+        HapticFeedback.mediumImpact();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('"$title" fixado na tela inicial!'),
@@ -106,6 +107,8 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
 
         if (mounted) {
           setState(() => _currentPackage = updatedPackage);
+
+          HapticFeedback.lightImpact();
 
           // Opcional: Atualizar widget automaticamente se este for o item fixado
           final String? pinnedTitle = await HomeWidget.getWidgetData<String>(
@@ -158,6 +161,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   }
 
   void _copyTrackingCode() {
+    HapticFeedback.selectionClick();
     Clipboard.setData(ClipboardData(text: _currentPackage.trackingCode));
     ScaffoldMessenger.of(
       context,

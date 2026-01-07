@@ -48,6 +48,7 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
       if (isDuplicate) return;
 
       if (mounted) {
+        HapticFeedback.lightImpact();
         setState(() {
           _trackingCodeController.text = text;
         });
@@ -113,6 +114,7 @@ class _AddPackageScreenState extends State<AddPackageScreen> {
       });
 
       if (mounted) {
+        HapticFeedback.mediumImpact();
         Navigator.of(context).pop();
         Navigator.push(
           context,
