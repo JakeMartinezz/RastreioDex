@@ -10,7 +10,9 @@ import '../models/package.dart';
 import '../models/tracking_event.dart';
 import '../services/database_service.dart';
 import '../services/tracking_service.dart';
+import '../services/preferences_service.dart';
 import 'edit_package_screen.dart';
+import 'map_screen.dart';
 
 class PackageDetailsScreen extends StatefulWidget {
   final Package package;
@@ -187,6 +189,29 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     HapticFeedback.selectionClick();
     Clipboard.setData(ClipboardData(text: _currentPackage.trackingCode));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado')));
+  }
+
+  Future<void> _openMap(String packageLocation) async {
+    final userCity = await PreferencesService.getUserCity();
+
+    if (userCity == null || userCity.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Configure sua cidade nos Ajustes primeiro!')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MapScreen(
+          packageLocation: packageLocation,
+          userLocation: userCity,
+        ),
+      ),
+    );
   }
 
   Future<void> _sharePackage() async {
@@ -588,6 +613,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                           isFirst: isFirst,
                           isLast: isLast,
                           dateFormat: dateFormat,
+                          onMapTap: () => _openMap(event.location),
                         );
                       },
                     ),
@@ -625,6 +651,7 @@ class TimelineTile extends StatelessWidget {
   final bool isFirst;
   final bool isLast;
   final DateFormat dateFormat;
+  final VoidCallback onMapTap;
 
   const TimelineTile({
     super.key,
@@ -632,6 +659,7 @@ class TimelineTile extends StatelessWidget {
     required this.isFirst,
     required this.isLast,
     required this.dateFormat,
+    required this.onMapTap,
   });
 
   IconData _getIcon() {
@@ -793,6 +821,21 @@ class TimelineTile extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (isFirst) ...[
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: onMapTap,
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.map_outlined,
+                              size: 16,
+                              color: isDark ? Colors.grey[400] : Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],

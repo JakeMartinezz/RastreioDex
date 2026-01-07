@@ -26,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _smartPaste = true;
   String _updateFrequency = '1 hora';
   final TextEditingController _apiKeyController = TextEditingController();
+  final TextEditingController _cityController = TextEditingController();
   bool _isLoading = true;
 
   final List<String> _frequencyOptions = [
@@ -48,6 +49,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final smart = await PreferencesService.getSmartPaste();
     final freq = await PreferencesService.getUpdateFrequency();
     final api = await PreferencesService.getApiKey();
+    final city = await PreferencesService.getUserCity();
 
     setState(() {
       _hideDelivered = hide;
@@ -55,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _smartPaste = smart;
       _updateFrequency = freq;
       _apiKeyController.text = api;
+      _cityController.text = city ?? '';
       _isLoading = false;
     });
   }
@@ -135,6 +138,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             });
             PreferencesService.saveAutoArchive(val);
           },
+        ),
+        const Divider(),
+        _buildSectionHeader('Localização'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: TextField(
+            controller: _cityController,
+            decoration: const InputDecoration(
+              labelText: 'Sua Cidade / Estado',
+              hintText: 'Ex: Curitiba, PR',
+              prefixIcon: Icon(Icons.location_on),
+              border: OutlineInputBorder(),
+              helperText: 'Para calcular a distância das encomendas',
+            ),
+            onChanged: (val) {
+              PreferencesService.saveUserCity(val);
+            },
+          ),
         ),
         const Divider(),
         _buildSectionHeader('Sincronização'),

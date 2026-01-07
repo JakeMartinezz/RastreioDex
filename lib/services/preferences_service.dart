@@ -2,10 +2,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class PreferencesService {
   static const String _keyHideDelivered = 'hide_delivered';
-  static const String _keyAutoArchive = 'auto_archive'; // NOVA CHAVE
+  static const String _keyAutoArchive = 'auto_archive';
   static const String _keyUpdateFrequency = 'update_frequency';
   static const String _keySmartPaste = 'smart_paste';
   static const String _keyApiKey = 'api_key';
+  static const String _keyUserCity = 'user_city';
 
   // --- Salvar ---
   static Future<void> saveHideDelivered(bool value) async {
@@ -33,6 +34,11 @@ class PreferencesService {
     await prefs.setString(_keyApiKey, value);
   }
 
+  static Future<void> saveUserCity(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyUserCity, value);
+  }
+
   // --- Ler ---
   static Future<bool> getHideDelivered() async {
     final prefs = await SharedPreferences.getInstance();
@@ -57,5 +63,10 @@ class PreferencesService {
   static Future<String> getApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyApiKey) ?? '';
+  }
+
+  static Future<String?> getUserCity() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyUserCity);
   }
 }
