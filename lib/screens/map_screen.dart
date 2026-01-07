@@ -47,16 +47,6 @@ class _MapScreenState extends State<MapScreen> {
           _distanceKm = distance.as(LengthUnit.Kilometer, start, end);
           _isLoading = false;
         });
-        
-        // Ajustar zoom para caber os dois pontos
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _mapController.fitCamera(
-            CameraFit.bounds(
-              bounds: LatLngBounds(start, end),
-              padding: const EdgeInsets.all(50),
-            ),
-          );
-        });
       } else {
         setState(() {
           _error = 'Não foi possível encontrar uma das localizações.';
@@ -137,8 +127,10 @@ class _MapScreenState extends State<MapScreen> {
                       child: FlutterMap(
                         mapController: _mapController,
                         options: MapOptions(
-                          initialCenter: _startPoint!,
-                          initialZoom: 5,
+                          initialCameraFit: CameraFit.bounds(
+                            bounds: LatLngBounds(_startPoint!, _endPoint!),
+                            padding: const EdgeInsets.all(50),
+                          ),
                         ),
                         children: [
                           TileLayer(
