@@ -176,7 +176,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ListTile(
                 leading: const Icon(Icons.upload_file),
                 title: const Text('Fazer Backup'),
-                subtitle: const Text('Exportar dados para JSON'),
+                subtitle: const Text('Exportar dados e configurações'),
                 onTap: _exportBackup,
               ),
               const Divider(height: 1),
@@ -193,7 +193,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 24),
         _buildSectionHeader('Testes'),
         
-        // Botão pequeno para teste de notificação
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -207,6 +206,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SnackBar(content: Text('Aguarde 10 segundos...')),
                 );
                 
+                // Teste simples com delay, sem agendamento complexo
                 Future.delayed(const Duration(seconds: 10), () {
                   NotificationService.showNotification(
                     'Teste Rápido',
@@ -254,7 +254,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               return RadioListTile<String>(
                 title: Text(option),
                 value: option,
-                // groupValue e onChanged são geridos pelo RadioGroup pai
               );
             }).toList(),
           ),
@@ -263,19 +262,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- LÓGICA DE BACKUP ---
+  // --- LÓGICA DE BACKUP COM API KEY ---
 
   Future<void> _exportBackup() async {
     final password = await _showPasswordDialog(isEncrypting: true);
     if (password == null) return; 
 
     try {
-      final data = await DatabaseService.instance.exportAllData();
-      String jsonString = jsonEncode(data);
+      // 1. Coletar dados (Pacotes + API Key)
+      final packages = await DatabaseService.instance.exportAllData();
+      final apiKey = await PreferencesService.getApiKey();
 
+      // Estrutura do novo JSON
+      final fullBackupData = {
+        'version': 1,
+        'apiKey': apiKey,
+        'packages': packages,
+        'exportedAt': DateTime.now().toIso8601String(),
+      };
+
+      String jsonString = jsonEncode(fullBackupData);
       String fileContent = jsonString;
       String fileName = 'rastreiodex_backup_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.json';
 
+      // 2. Criptografia (se senha definida)
       if (password.isNotEmpty) {
         final key = encrypt.Key.fromUtf8(password.padRight(32).substring(0, 32));
         final iv = encrypt.IV.fromLength(16);
@@ -283,14 +293,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         
         final encrypted = encrypter.encrypt(jsonString, iv: iv);
         
-        final backupMap = {
+        final encryptedMap = {
           "encrypted": true,
           "iv": iv.base64,
           "data": encrypted.base64
         };
-        fileContent = jsonEncode(backupMap);
+        fileContent = jsonEncode(encryptedMap);
       }
 
+      // 3. Salvar e Compartilhar
       final directory = await getTemporaryDirectory();
       final file = File('${directory.path}/$fileName');
       await file.writeAsString(fileContent);
@@ -321,6 +332,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         throw 'Arquivo inválido ou corrompido.';
       }
 
+      // 1. Decriptar se necessário
       if (decoded is Map && decoded['encrypted'] == true) {
         String? password;
         bool success = false;
@@ -347,30 +359,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
 
-      if (decoded is List) {
-        if (!mounted) return;
-        final confirm = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Restaurar Backup?'),
-            content: Text('Isso substituirá suas encomendas atuais por ${decoded.length} itens do backup.'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Restaurar')),
-            ],
-          ),
-        );
+      // 2. Processar dados (Suporta formato antigo e novo)
+      List<dynamic> packagesToRestore = [];
+      String? apiKeyToRestore;
 
-        if (confirm == true) {
-          await DatabaseService.instance.importData(decoded);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Backup restaurado com sucesso!'), backgroundColor: Colors.green),
-            );
-          }
-        }
+      if (decoded is List) {
+        // Formato Antigo (só lista)
+        packagesToRestore = decoded;
+      } else if (decoded is Map) {
+        // Formato Novo (com metadata)
+        packagesToRestore = decoded['packages'] ?? [];
+        apiKeyToRestore = decoded['apiKey'];
       } else {
         throw 'Formato de arquivo não reconhecido.';
+      }
+
+      // 3. Confirmação
+      if (!mounted) return;
+      
+      String confirmMessage = 'Isso substituirá suas encomendas atuais por ${packagesToRestore.length} itens.';
+      if (apiKeyToRestore != null && apiKeyToRestore.isNotEmpty) {
+        confirmMessage += '\n\nTambém atualizará sua Chave de API.';
+      }
+
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Restaurar Backup?'),
+          content: Text(confirmMessage),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Restaurar')),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        // Restaurar API Key
+        if (apiKeyToRestore != null && apiKeyToRestore.isNotEmpty) {
+          await PreferencesService.saveApiKey(apiKeyToRestore);
+          setState(() {
+            _apiKeyController.text = apiKeyToRestore!;
+          });
+        }
+
+        // Restaurar Pacotes
+        await DatabaseService.instance.importData(packagesToRestore);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Backup restaurado com sucesso!'), backgroundColor: Colors.green),
+          );
+        }
       }
 
     } catch (e) {
@@ -394,7 +434,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(isEncrypting 
-                ? 'Digite uma senha para criptografar o arquivo (opcional).' 
+                ? 'Digite uma senha para criptografar (opcional).' 
                 : 'Este backup é criptografado. Digite a senha.'),
               const SizedBox(height: 10),
               TextField(
