@@ -743,8 +743,6 @@ class TimelineTile extends StatelessWidget {
                             fontSize: 12,
                             color: isDark ? Colors.grey[400] : Colors.grey[600],
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Container(

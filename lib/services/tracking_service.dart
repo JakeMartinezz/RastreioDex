@@ -173,6 +173,8 @@ class TrackingService {
                 final descricaoWeb = evento['descricaoWeb'] ?? '';
 
                 String location = 'Brasil';
+
+                // 1. Pega a Origem (onde está ou de onde saiu)
                 if (evento['unidade'] != null && evento['unidade']['endereco'] != null) {
                   final endereco = evento['unidade']['endereco'];
                   final cidade = endereco['cidade'] ?? '';
@@ -181,6 +183,21 @@ class TrackingService {
                     location = '$cidade - $uf';
                   } else if (uf.isNotEmpty) {
                     location = uf;
+                  }
+                }
+
+                // 2. Pega o Destino (para onde está indo)
+                if (evento['unidadeDestino'] != null && evento['unidadeDestino']['endereco'] != null) {
+                  final endDest = evento['unidadeDestino']['endereco'];
+                  final cidadeDest = endDest['cidade'] ?? '';
+                  final ufDest = endDest['uf'] ?? '';
+
+                  if (cidadeDest.isNotEmpty && ufDest.isNotEmpty) {
+                    final destinoStr = '$cidadeDest - $ufDest';
+                    // Evita duplicar se origem for igual ao destino
+                    if (!location.contains(cidadeDest)) {
+                      location = '$location ➔ $destinoStr';
+                    }
                   }
                 }
 
