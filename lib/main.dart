@@ -1,27 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:adaptive_theme/adaptive_theme.dart';
-import 'package:workmanager/workmanager.dart';
 import 'screens/home_screen.dart';
 import 'services/theme_service.dart';
 import 'services/background_service.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializa Workmanager
-  // Nota: isInDebugMode foi removido na nova versão
-  await Workmanager().initialize(callbackDispatcher);
+  // Inicializa sistema de notificações
+  await NotificationService.initialize();
 
-
-  // Registra a tarefa periódica
-  await Workmanager().registerPeriodicTask(
-    "1", // ID único da tarefa
-    fetchBackgroundTask, // Nome da tarefa
-    frequency: const Duration(minutes: 15),
-    constraints: Constraints(networkType: NetworkType.connected),
-    // CORREÇÃO AQUI: Mudou de ExistingWorkPolicy para ExistingPeriodicWorkPolicy
-    existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
-  );
+  // Inicializa e registra background service
+  await BackgroundService.initialize();
+  await BackgroundService.registerPeriodicTask();
 
   final savedTheme = await AdaptiveTheme.getThemeMode();
   runApp(MyApp(savedTheme: savedTheme));

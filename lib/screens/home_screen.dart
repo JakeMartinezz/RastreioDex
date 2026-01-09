@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:adaptive_theme/adaptive_theme.dart';
@@ -21,7 +22,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   int _currentTabIndex = 0;
 
@@ -29,10 +30,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<Package> _activePackages = [];
   List<Package> _archivedPackages = [];
   bool _hideDelivered = false;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     NotificationService.initialize();
 
     // Verificação de inicialização pelo widget
@@ -49,12 +53,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       });
     });
     _initialLoad();
+
+    // Atualiza automaticamente a cada 5 minutos com o app aberto
+    _autoRefreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
+      debugPrint('⏰ Auto-refresh ativado (5 min)');
+      _refreshPackages(silent: true);
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autoRefreshTimer?.cancel();
     _tabController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('📱 App retomado: Atualizando encomendas...');
+      _refreshPackages();
+    }
   }
 
   Future<void> _initialLoad() async {
@@ -161,39 +181,61 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _refreshPackages() async {
-    // Then, update from network
+  Future<void> _refreshPackages({bool silent = false}) async {
+    // Carrega do banco primeiro (rápido)
+    await _updateLists();
+
+    // Atualiza da rede
     try {
       final packagesToUpdate = await DatabaseService.instance.getAllPackages();
+      bool mudouAlgo = false;
+
       for (var package in packagesToUpdate) {
         if (package.isDelivered || package.isArchived) continue;
 
         try {
           final result = await TrackingService.trackPackage(package.trackingCode);
           if (result.events.isNotEmpty) {
-            final updatedPackage = package.copyWith(
-              events: result.events,
-              lastUpdate: DateTime.now(),
-              currentStatus: result.events.first.status,
-              isDelivered: result.isDelivered,
-              estimatedDelivery: result.estimatedDelivery,
-            );
-            await DatabaseService.instance.createOrUpdatePackage(updatedPackage);
+            // Ordena eventos para garantir que o primeiro é o mais recente
+            final newEvents = result.events;
+            newEvents.sort((a, b) => b.dateTime.compareTo(a.dateTime));
 
-            if (package.currentStatus != updatedPackage.currentStatus) {
-               await NotificationService.showNotification(
-                'Encomenda Atualizada',
-                '${updatedPackage.customName ?? updatedPackage.trackingCode}: ${updatedPackage.currentStatus}',
+            final lastEvent = newEvents.first;
+
+            // Compara por data do evento (mais preciso)
+            final bool hasUpdates = package.events.isEmpty ||
+                                    lastEvent.dateTime.isAfter(package.events.first.dateTime);
+
+            if (hasUpdates) {
+              final updatedPackage = package.copyWith(
+                events: newEvents,
+                lastUpdate: lastEvent.dateTime,
+                currentStatus: lastEvent.status,
+                isDelivered: result.isDelivered,
+                estimatedDelivery: result.estimatedDelivery,
               );
+              await DatabaseService.instance.createOrUpdatePackage(updatedPackage);
+              mudouAlgo = true;
+
+              // Notifica apenas se não for silent
+              if (!silent && package.currentStatus != updatedPackage.currentStatus) {
+                await NotificationService.showNotification(
+                  'Encomenda Atualizada',
+                  '${updatedPackage.customName ?? updatedPackage.trackingCode}: ${updatedPackage.currentStatus}',
+                );
+              }
             }
           }
         } catch (e) {
           debugPrint('Erro ao atualizar pacote ${package.trackingCode}: $e');
         }
       }
-      await _updateLists(); // Refresh UI again with updated data
+
+      if (mudouAlgo) {
+        await _updateLists();
+      }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !silent) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao atualizar encomendas: $e')),
         );
