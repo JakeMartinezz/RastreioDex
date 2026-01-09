@@ -164,15 +164,37 @@ RastreioDex é um aplicativo móvel desenvolvido em Flutter que permite rastrear
 
 ## Screenshots
 
-<p>
-  <img src="assets/screenshot.png" alt="RastreioDex Print"/>
-</p>
+<table>
+  <tr>
+    <td align="center">
+      <img src="assets/screenshots/Main.png" alt="Tela Principal" width="250" />
+      <br />
+      <sub><b>Tela Principal</b></sub>
+      <br />
+      <sub>Sistema de abas com encomendas ativas e arquivadas</sub>
+    </td>
+    <td align="center">
+      <img src="assets/screenshots/Details.png" alt="Detalhes do Rastreio" width="250" />
+      <br />
+      <sub><b>Detalhes do Rastreio</b></sub>
+      <br />
+      <sub>Timeline completa com todos os eventos de rastreamento</sub>
+    </td>
+    <td align="center">
+      <img src="assets/screenshots/Map.jpg" alt="Visualização no Mapa" width="250" />
+      <br />
+      <sub><b>Mapa de Distância</b></sub>
+      <br />
+      <sub>Visualização com OpenStreetMap mostrando localização e distância</sub>
+    </td>
+  </tr>
+</table>
 
 ## Pré-requisitos
 
 - Flutter SDK 3.0 ou superior
 - Android SDK (para build Android)
-- Conta na [Wonca Labs](https://woncalabs.com.br) para obter API key
+- Conta na [Wonca Labs](https://labs.wonca.com.br) para obter API key
 
 ## Instalação
 
@@ -212,7 +234,7 @@ flutter build appbundle
 
 ### API Key da Wonca Labs
 
-1. Acesse [woncalabs.com.br](https://woncalabs.com.br) e crie uma conta
+1. Acesse [labs.wonca.com.br](https://labs.wonca.com.br) e crie uma conta
 2. Obtenha sua API key
 3. No app, vá em **Configurações** > **Chave API**
 4. Cole sua chave e salve
